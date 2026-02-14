@@ -31,24 +31,54 @@ def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
         email=user.email,
         password_hash=get_password_hash(user.password),
         name=user.name,
-        role=models.RoleEnum[user.role],
-        major=user.major,
-        year=user.year,
-        graduation_year=user.graduation_year,
-        company=user.company,
-        job_title=user.job_title,
-        location=user.location,
-        bio=user.bio,
-        is_tutor=user.is_tutor,
-        gpa=user.gpa,
+        role=user.role,
+        major="",
+        profile_data={},
         avatar_url=f"https://ui-avatars.com/api/?name={user.name.replace(' ', '+')}"
     )
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
     
+    user_response = schemas.UserResponse.from_orm(db_user)
+    user_response.profile_completed = bool(db_user.profile_data)
+    
     token = create_access_token({"sub": db_user.id})
-    return {"access_token": token, "token_type": "bearer", "user": db_user}
+    return {"access_token": token, "token_type": "bearer", "user": user_response}
+
+@app.put("/api/auth/complete-profile", response_model=schemas.UserResponse)
+def complete_profile(
+    questionnaire: dict,
+    user_id: str = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Update searchable fields
+    if 'major' in questionnaire:
+        user.major = questionnaire['major']
+    if 'minor' in questionnaire:
+        user.minor = questionnaire['minor']
+    if 'graduation_year' in questionnaire:
+        user.graduation_year = questionnaire['graduation_year']
+    if 'company' in questionnaire:
+        user.company = questionnaire['company']
+    if 'job_title' in questionnaire:
+        user.job_title = questionnaire['job_title']
+    if 'year' in questionnaire:
+        user.year = questionnaire['year']
+    
+    # Store all data in profile_data JSON
+    user.profile_data = questionnaire
+    
+    db.commit()
+    db.refresh(user)
+    
+    user_response = schemas.UserResponse.from_orm(user)
+    user_response.profile_completed = True
+    return user_response
 
 @app.post("/api/auth/login", response_model=schemas.Token)
 def login(credentials: schemas.LoginRequest, db: Session = Depends(get_db)):
@@ -56,39 +86,43 @@ def login(credentials: schemas.LoginRequest, db: Session = Depends(get_db)):
     if not user or not verify_password(credentials.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
+    user_response = schemas.UserResponse.from_orm(user)
+    user_response.profile_completed = bool(user.profile_data)
+    
     token = create_access_token({"sub": user.id})
-    return {"access_token": token, "token_type": "bearer", "user": user}
+    return {"access_token": token, "token_type": "bearer", "user": user_response}
 
 @app.get("/api/auth/me", response_model=schemas.UserResponse)
 def get_me(user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    return user
+    
+    user_response = schemas.UserResponse.from_orm(user)
+    user_response.profile_completed = bool(user.profile_data)
+    return user_response
 
 # CAREER STREAM ENDPOINTS
 @app.get("/api/alumni")
 def get_alumni(
     major: Optional[str] = None,
     company: Optional[str] = None,
-    location: Optional[str] = None,
     user_id: str = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    query = db.query(models.User).filter(models.User.role == models.RoleEnum.alumni)
+    query = db.query(models.User).filter(models.User.role == 'alumni')
     
     if major:
         query = query.filter(models.User.major.ilike(f"%{major}%"))
     if company:
         query = query.filter(models.User.company.ilike(f"%{company}%"))
-    if location:
-        query = query.filter(models.User.location.ilike(f"%{location}%"))
     
     alumni = query.all()
     student = db.query(models.User).filter(models.User.id == user_id).first()
     
     result = []
     for alum in alumni:
+        profile = alum.profile_data or {}
         alum_dict = {
             "id": alum.id,
             "name": alum.name,
@@ -96,21 +130,23 @@ def get_alumni(
             "major": alum.major,
             "company": alum.company,
             "job_title": alum.job_title,
-            "location": alum.location,
-            "bio": alum.bio,
+            "location": profile.get("location", ""),
+            "bio": profile.get("expertise_areas", ""),
             "avatar_url": alum.avatar_url,
             "graduation_year": alum.graduation_year,
-            "accepting_connections": alum.accepting_connections
+            "accepting_connections": profile.get("accepting_requests", True)
         }
         
-        if student:
+        if student and student.profile_data:
             student_dict = {
                 "major": student.major,
                 "year": student.year,
-                "company_wishlist": student.company_wishlist or []
+                "company_wishlist": student.profile_data.get("target_companies", [])
             }
             match_score = compute_career_match(student_dict, alum_dict)
             alum_dict["match_score"] = match_score
+        else:
+            alum_dict["match_score"] = 50
         
         result.append(alum_dict)
     
@@ -120,7 +156,7 @@ def get_alumni(
 def get_alumni_by_id(alumni_id: str, db: Session = Depends(get_db)):
     alumni = db.query(models.User).filter(
         models.User.id == alumni_id,
-        models.User.role == models.RoleEnum.alumni
+        models.User.role == 'alumni'
     ).first()
     if not alumni:
         raise HTTPException(status_code=404, detail="Alumni not found")
@@ -161,7 +197,7 @@ def accept_connection(
     if connection.target_id != user_id:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    connection.status = models.ConnectionStatus.accepted
+    connection.status = 'accepted'
     db.commit()
     return connection
 
@@ -177,7 +213,7 @@ def decline_connection(
     if connection.target_id != user_id:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    connection.status = models.ConnectionStatus.declined
+    connection.status = 'declined'
     db.commit()
     return connection
 
@@ -188,11 +224,14 @@ def get_tutors(
     subject: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
-    query = db.query(models.User).filter(models.User.is_tutor == True)
+    query = db.query(models.User).filter(models.User.role == 'student')
     tutors = query.all()
     
     result = []
     for tutor in tutors:
+        if not tutor.profile_data.get('is_tutor'):
+            continue
+            
         courses = db.query(models.StudentCourse, models.Course).join(
             models.Course
         ).filter(
@@ -208,15 +247,16 @@ def get_tutors(
         if subject and not any(subject.lower() in c.department.lower() for sc, c in courses):
             continue
         
+        profile = tutor.profile_data or {}
         result.append({
             "id": tutor.id,
             "name": tutor.name,
             "major": tutor.major,
             "year": tutor.year,
             "gpa": float(tutor.gpa) if tutor.gpa else None,
-            "bio": tutor.bio,
+            "bio": profile.get("areas_of_interest", ""),
             "avatar_url": tutor.avatar_url,
-            "tutoring_sessions": tutor.tutoring_sessions,
+            "tutoring_sessions": 0,
             "courses": tutor_courses
         })
     
@@ -244,7 +284,7 @@ def create_help_request(
 def get_help_requests(status: Optional[str] = None, db: Session = Depends(get_db)):
     query = db.query(models.HelpRequest)
     if status:
-        query = query.filter(models.HelpRequest.status == models.RequestStatus[status])
+        query = query.filter(models.HelpRequest.status == status)
     return query.order_by(models.HelpRequest.created_at.desc()).all()
 
 @app.post("/api/help-requests/{request_id}/match")
@@ -256,7 +296,6 @@ def match_request(request_id: str, db: Session = Depends(get_db)):
     tutors = db.query(models.User, models.StudentCourse).join(
         models.StudentCourse, models.User.id == models.StudentCourse.user_id
     ).filter(
-        models.User.is_tutor == True,
         models.StudentCourse.course_id == help_request.course_id,
         models.StudentCourse.can_tutor == True
     ).all()
@@ -271,7 +310,7 @@ def match_request(request_id: str, db: Session = Depends(get_db)):
             "name": user.name,
             "gpa": user.gpa,
             "grade": sc.grade,
-            "bio": user.bio or ""
+            "bio": user.profile_data.get("areas_of_interest", "") if user.profile_data else ""
         }
         for user, sc in tutors
     ]
@@ -361,12 +400,15 @@ def ai_match_explanation(
     if not student or not target:
         raise HTTPException(status_code=404, detail="User not found")
     
-    student_dict = {"major": student.major, "interests": student.bio}
+    student_profile = student.profile_data or {}
+    target_profile = target.profile_data or {}
+    
+    student_dict = {"major": student.major, "interests": student_profile.get("areas_of_interest", "")}
     target_dict = {"major": target.major, "job_title": target.job_title, "company": target.company}
     
     match_score = compute_career_match(
-        {"major": student.major, "year": student.year, "company_wishlist": student.company_wishlist or []},
-        {"major": target.major, "company": target.company, "graduation_year": target.graduation_year, "accepting_connections": target.accepting_connections}
+        {"major": student.major, "year": student.year, "company_wishlist": student_profile.get("target_companies", [])},
+        {"major": target.major, "company": target.company, "graduation_year": target.graduation_year, "accepting_connections": target_profile.get("accepting_requests", True)}
     )
     
     reasons = explain_match(student_dict, target_dict, match_score)

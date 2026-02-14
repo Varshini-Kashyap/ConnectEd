@@ -1,42 +1,48 @@
-from database import SessionLocal
-from models import User, Course, StudentCourse, HelpRequest, RoleEnum, RequestStatus
+from database import SessionLocal, Base, engine
+from models import User, Course, StudentCourse, HelpRequest
 from passlib.context import CryptContext
 from datetime import datetime
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def seed_data():
+    # Create all tables first
+    Base.metadata.create_all(bind=engine)
+    
     db = SessionLocal()
     
     # Clear existing data
-    db.query(HelpRequest).delete()
-    db.query(StudentCourse).delete()
-    db.query(User).delete()
-    db.query(Course).delete()
-    db.commit()
+    try:
+        db.query(HelpRequest).delete()
+        db.query(StudentCourse).delete()
+        db.query(User).delete()
+        db.query(Course).delete()
+        db.commit()
+    except:
+        db.rollback()
     
     # Create courses
     courses_data = [
+        ("CS 110", "Essentials of Computer Science", "CS"),
         ("CS 112", "Introduction to Computer Programming", "CS"),
-        ("CS 211", "Object-Oriented Programming", "CS"),
+        ("CS 211", "Object Oriented Programming", "CS"),
+        ("CS 262", "Introduction to Low-level Programming", "CS"),
         ("CS 310", "Data Structures", "CS"),
+        ("CS 321", "Software Engineering", "CS"),
         ("CS 330", "Formal Methods and Models", "CS"),
         ("CS 367", "Computer Systems and Programming", "CS"),
-        ("CS 450", "Database Concepts", "CS"),
-        ("CS 465", "Computer Systems Architecture", "CS"),
         ("CS 471", "Operating Systems", "CS"),
         ("CS 483", "Analysis of Algorithms", "CS"),
-        ("CS 484", "Data Mining", "CS"),
+        ("CS 465", "Computer Systems Architecture", "CS"),
+        ("CS 584", "Theory of Computation", "CS"),
         ("MATH 113", "Analytic Geometry and Calculus I", "MATH"),
         ("MATH 114", "Analytic Geometry and Calculus II", "MATH"),
-        ("MATH 213", "Analytic Geometry and Calculus III", "MATH"),
-        ("MATH 125", "Discrete Mathematics", "MATH"),
-        ("STAT 344", "Probability and Statistics for Engineers", "MATH"),
-        ("ENGR 107", "Introduction to Engineering", "ENGR"),
-        ("ECE 301", "Digital Electronics", "ENGR"),
-        ("ECE 445", "Senior Design Project", "ENGR"),
-        ("SWE 432", "Design and Implementation of Software for the Web", "CS"),
-        ("SWE 437", "Software Testing and Maintenance", "CS"),
+        ("MATH 203", "Linear Algebra", "MATH"),
+        ("STAT 344", "Probability and Statistics", "STAT"),
+        ("IT 341", "IT Project Management", "IT"),
+        ("SYST 460", "Systems Integration", "SYST"),
+        ("CYSE 200", "Introduction to Cybersecurity", "CYSE"),
+        ("CYSE 330", "Security Fundamentals", "CYSE"),
     ]
     
     courses = []
@@ -46,142 +52,470 @@ def seed_data():
         courses.append(course)
     db.commit()
     
-    # Create alumni profiles
+    # Create 12 ALUMNI
     alumni_data = [
-        ("Sarah Chen", "sarah.chen@gmu.edu", "Computer Science", 2020, "Google", "Software Engineer II", "Former GMU CS grad working on Google Cloud. Happy to help current students with career advice and technical interviews!"),
-        ("Michael Rodriguez", "m.rodriguez@gmu.edu", "Computer Science", 2019, "Amazon", "Senior SDE", "AWS engineer passionate about distributed systems. Love mentoring GMU students!"),
-        ("Emily Johnson", "emily.j@gmu.edu", "Information Technology", 2021, "Microsoft", "Software Engineer", "Working on Azure at Microsoft. GMU alum always ready to give back to the community."),
-        ("David Kim", "david.kim@gmu.edu", "Computer Science", 2018, "Capital One", "Senior Software Engineer", "Tech lead at Capital One. Specialized in full-stack development and cloud architecture."),
-        ("Jessica Martinez", "j.martinez@gmu.edu", "Computer Science", 2020, "Accenture", "Technology Consultant", "Helping clients with digital transformation. Open to discussing consulting careers!"),
-        ("Ryan Thompson", "ryan.t@gmu.edu", "Software Engineering", 2019, "Deloitte", "Senior Consultant", "Cybersecurity and cloud solutions at Deloitte. GMU pride!"),
-        ("Amanda Lee", "amanda.lee@gmu.edu", "Computer Science", 2022, "Google", "Software Engineer", "Android development at Google. Recent grad happy to share my journey!"),
-        ("James Wilson", "james.w@gmu.edu", "Information Systems", 2021, "Amazon", "Software Development Engineer", "Working on Alexa. Love connecting with fellow Patriots!"),
-        ("Priya Patel", "priya.p@gmu.edu", "Computer Science", 2020, "Microsoft", "Software Engineer II", "Azure DevOps team. Always excited to mentor GMU students."),
-        ("Christopher Brown", "chris.b@gmu.edu", "Computer Science", 2018, "Capital One", "Principal Engineer", "Leading mobile engineering teams. GMU CS alum since 2018."),
-        ("Nicole Garcia", "nicole.g@gmu.edu", "Cyber Security Engineering", 2021, "Accenture", "Security Consultant", "Penetration testing and security architecture. Go Patriots!"),
-        ("Kevin Nguyen", "kevin.n@gmu.edu", "Computer Science", 2019, "Deloitte", "Manager", "Leading cloud migration projects. Proud GMU graduate."),
-        ("Olivia Davis", "olivia.d@gmu.edu", "Software Engineering", 2022, "Google", "Software Engineer", "Working on Google Maps. Recent GMU grad!"),
-        ("Brandon Miller", "brandon.m@gmu.edu", "Computer Science", 2020, "Amazon", "SDE II", "Prime Video team. Love helping GMU students break into tech."),
-        ("Sophia Anderson", "sophia.a@gmu.edu", "Information Technology", 2021, "Microsoft", "Cloud Solution Architect", "Helping enterprises adopt Azure. GMU alum passionate about mentorship."),
+        {
+            "name": "Priya Sharma",
+            "email": "priya.sharma@gmail.com",
+            "major": "Computer Science",
+            "graduation_year": 2019,
+            "company": "Google",
+            "job_title": "Senior Software Engineer",
+            "profile_data": {
+                "industry": "Technology",
+                "location": "Mountain View, CA",
+                "expertise_areas": "Backend systems, Kubernetes, Go, distributed systems, microservices architecture",
+                "career_journey": "Started as SWE at startup, moved to Google in 2021. Now lead backend infrastructure for Google Cloud",
+                "hobbies": "Rock climbing, cooking Indian food, volunteering at Code.org",
+                "help_offered": ["Career guidance and industry insights", "Technical interview preparation", "System design mentorship"],
+                "specific_topics": "Kubernetes, Go programming, distributed systems, cloud architecture",
+                "accepting_requests": True,
+                "preferred_response_time": "Within 24 hours",
+                "preferred_interaction": "Virtual calls",
+                "max_connections_per_month": 10
+            }
+        },
+        {
+            "name": "Marcus Johnson",
+            "email": "marcus.j@amazon.com",
+            "major": "Computer Science",
+            "graduation_year": 2016,
+            "company": "Amazon",
+            "job_title": "Principal Engineer",
+            "profile_data": {
+                "industry": "Technology",
+                "location": "Seattle, WA",
+                "expertise_areas": "Machine learning infrastructure, Python, AWS, TensorFlow, MLOps",
+                "career_journey": "Built ML platforms at 2 startups before joining AWS AI Labs. Focus on scalable ML systems",
+                "hobbies": "Basketball, chess, mentoring at local bootcamps",
+                "help_offered": ["Career guidance and industry insights", "Technical interview preparation", "Specific technical mentorship"],
+                "specific_topics": "AWS ML services, TensorFlow, Python best practices, ML system design",
+                "accepting_requests": True,
+                "preferred_response_time": "2-3 days",
+                "preferred_interaction": "Any",
+                "max_connections_per_month": 15
+            }
+        },
+        {
+            "name": "Elena Rodriguez",
+            "email": "elena.r@microsoft.com",
+            "major": "Information Systems",
+            "graduation_year": 2018,
+            "company": "Microsoft",
+            "job_title": "Product Manager",
+            "profile_data": {
+                "industry": "Technology",
+                "location": "Redmond, WA",
+                "expertise_areas": "Product strategy, Azure, agile methodologies, stakeholder management, roadmap planning",
+                "career_journey": "Started as BA, transitioned to PM. Led 3 major Azure features",
+                "hobbies": "Salsa dancing, hiking, reading sci-fi novels",
+                "help_offered": ["Career guidance and industry insights", "Resume and cover letter reviews", "Behavioral interview preparation"],
+                "specific_topics": "Product management transition, Azure ecosystem, agile practices",
+                "accepting_requests": True,
+                "preferred_response_time": "Within 24 hours",
+                "preferred_interaction": "Coffee chats",
+                "max_connections_per_month": 8
+            }
+        },
+        {
+            "name": "David Chen",
+            "email": "david.chen@meta.com",
+            "major": "Computer Science",
+            "graduation_year": 2020,
+            "company": "Meta",
+            "job_title": "Software Engineer",
+            "profile_data": {
+                "industry": "Technology",
+                "location": "Menlo Park, CA",
+                "expertise_areas": "React, GraphQL, mobile development, frontend architecture, performance optimization",
+                "career_journey": "Joined Meta as new grad. Built features for Instagram with 2B users",
+                "hobbies": "Photography, guitar, travel blogging",
+                "help_offered": ["Career guidance and industry insights", "Technical interview preparation", "Specific technical mentorship"],
+                "specific_topics": "React best practices, GraphQL, mobile web, frontend performance",
+                "accepting_requests": True,
+                "preferred_response_time": "Within 24 hours",
+                "preferred_interaction": "Virtual calls",
+                "max_connections_per_month": 12
+            }
+        },
+        {
+            "name": "Sarah Williams",
+            "email": "sarah.w@capitalone.com",
+            "major": "Data Science",
+            "graduation_year": 2017,
+            "company": "Capital One",
+            "job_title": "Lead Data Scientist",
+            "profile_data": {
+                "industry": "Finance",
+                "location": "McLean, VA",
+                "expertise_areas": "Machine learning, fraud detection, Python, SQL, model deployment, A/B testing",
+                "career_journey": "Started in banking analytics, now lead ML team of 5 at Capital One",
+                "hobbies": "Yoga, pottery, board games",
+                "help_offered": ["Career guidance and industry insights", "Technical interview preparation", "Specific technical mentorship"],
+                "specific_topics": "Data science in finance, ML model deployment, Python for data science",
+                "accepting_requests": True,
+                "preferred_response_time": "2-3 days",
+                "preferred_interaction": "Email advice",
+                "max_connections_per_month": 10
+            }
+        },
+        {
+            "name": "Raj Patel",
+            "email": "raj.patel@deloitte.com",
+            "major": "Information Systems",
+            "graduation_year": 2019,
+            "company": "Deloitte",
+            "job_title": "Senior Consultant",
+            "profile_data": {
+                "industry": "Consulting",
+                "location": "Arlington, VA",
+                "expertise_areas": "Cloud migration, SAP, digital transformation, client management, project leadership",
+                "career_journey": "Helped 15+ Fortune 500 companies migrate to cloud. Promoted to senior in 3 years",
+                "hobbies": "Cricket, cooking, traveling",
+                "help_offered": ["Career guidance and industry insights", "Resume and cover letter reviews", "Networking strategies and tips"],
+                "specific_topics": "Consulting career path, cloud migration strategies, client management",
+                "accepting_requests": True,
+                "preferred_response_time": "Within 24 hours",
+                "preferred_interaction": "Coffee chats",
+                "max_connections_per_month": 5
+            }
+        },
+        {
+            "name": "Amy Liu",
+            "email": "amy.liu@apple.com",
+            "major": "Computer Science",
+            "graduation_year": 2018,
+            "company": "Apple",
+            "job_title": "iOS Engineer",
+            "profile_data": {
+                "industry": "Technology",
+                "location": "Cupertino, CA",
+                "expertise_areas": "Swift, UIKit, SwiftUI, iOS performance optimization, mobile architecture",
+                "career_journey": "Worked on 3 indie apps before Apple. Now on core iOS team",
+                "hobbies": "Painting, running marathons, coffee enthusiast",
+                "help_offered": ["Career guidance and industry insights", "Technical interview preparation", "Specific technical mentorship"],
+                "specific_topics": "iOS development, Swift, mobile app architecture, App Store optimization",
+                "accepting_requests": True,
+                "preferred_response_time": "2-3 days",
+                "preferred_interaction": "Virtual calls",
+                "max_connections_per_month": 8
+            }
+        },
+        {
+            "name": "James Miller",
+            "email": "james.miller@accenture.com",
+            "major": "Cyber Security Engineering",
+            "graduation_year": 2016,
+            "company": "Accenture",
+            "job_title": "Technology Architect",
+            "profile_data": {
+                "industry": "Consulting",
+                "location": "Washington, DC",
+                "expertise_areas": "Security architecture, cloud security, compliance, penetration testing, zero trust",
+                "career_journey": "Started in cybersecurity consulting, now design secure systems for Fortune 100",
+                "hobbies": "Mountain biking, woodworking, homebrewing",
+                "help_offered": ["Career guidance and industry insights", "Technical interview preparation", "Specific technical mentorship"],
+                "specific_topics": "Cybersecurity certifications, cloud security, security architecture",
+                "accepting_requests": True,
+                "preferred_response_time": "Within 24 hours",
+                "preferred_interaction": "Any",
+                "max_connections_per_month": 10
+            }
+        },
+        {
+            "name": "Natasha Kumar",
+            "email": "natasha.k@stripe.com",
+            "major": "Computer Science",
+            "graduation_year": 2021,
+            "company": "Stripe",
+            "job_title": "Backend Engineer",
+            "profile_data": {
+                "industry": "Technology",
+                "location": "San Francisco, CA",
+                "expertise_areas": "Payments infrastructure, Ruby, distributed systems, APIs, database design",
+                "career_journey": "Joined Stripe as new grad. Built features processing $50B annually",
+                "hobbies": "Stand-up comedy, baking, playing piano",
+                "help_offered": ["Career guidance and industry insights", "Resume and cover letter reviews", "Technical interview preparation"],
+                "specific_topics": "Backend engineering, API design, distributed systems, Ruby",
+                "accepting_requests": True,
+                "preferred_response_time": "Within 24 hours",
+                "preferred_interaction": "Virtual calls",
+                "max_connections_per_month": 15
+            }
+        },
+        {
+            "name": "Carlos Mendez",
+            "email": "carlos.m@boozallen.com",
+            "major": "Data Science",
+            "graduation_year": 2019,
+            "company": "Booz Allen Hamilton",
+            "job_title": "Data Engineer",
+            "profile_data": {
+                "industry": "Government",
+                "location": "McLean, VA",
+                "expertise_areas": "Data pipelines, Spark, Airflow, AWS, ETL, analytics, data warehousing",
+                "career_journey": "Built data infrastructure for government clients. Specialize in large-scale data processing",
+                "hobbies": "Soccer, guitar, volunteering at animal shelter",
+                "help_offered": ["Career guidance and industry insights", "Technical interview preparation", "Specific technical mentorship"],
+                "specific_topics": "Data engineering, Spark, Airflow, AWS data services, government contracting",
+                "accepting_requests": True,
+                "preferred_response_time": "2-3 days",
+                "preferred_interaction": "Email advice",
+                "max_connections_per_month": 10
+            }
+        },
+        {
+            "name": "Jessica Park",
+            "email": "jessica.park@ngc.com",
+            "major": "Systems Engineering",
+            "graduation_year": 2017,
+            "company": "Northrop Grumman",
+            "job_title": "Systems Engineer",
+            "profile_data": {
+                "industry": "Aerospace",
+                "location": "Falls Church, VA",
+                "expertise_areas": "Aerospace systems, requirements engineering, MATLAB, testing, systems integration",
+                "career_journey": "Work on defense systems. Secret clearance. Led 2 major satellite projects",
+                "hobbies": "Tennis, reading thriller novels, learning Korean",
+                "help_offered": ["Career guidance and industry insights", "Resume and cover letter reviews", "Company/industry-specific questions"],
+                "specific_topics": "Defense contracting, systems engineering, security clearances",
+                "accepting_requests": True,
+                "preferred_response_time": "2-3 days",
+                "preferred_interaction": "Email advice",
+                "max_connections_per_month": 5
+            }
+        },
+        {
+            "name": "Ahmed Hassan",
+            "email": "ahmed@fintech-startup.com",
+            "major": "Computer Science",
+            "graduation_year": 2020,
+            "company": "Startup (Venture-backed)",
+            "job_title": "Founding Engineer",
+            "profile_data": {
+                "industry": "Startups",
+                "location": "San Francisco, CA",
+                "expertise_areas": "Full-stack, React, Node.js, MongoDB, startup operations, product development",
+                "career_journey": "Employee #3 at fintech startup. Built entire platform from scratch. Series A raised",
+                "hobbies": "Gaming, entrepreneurship podcasts, fitness",
+                "help_offered": ["Career guidance and industry insights", "Specific technical mentorship", "Work-life balance and career growth"],
+                "specific_topics": "Startup life, full-stack development, React, Node.js, MongoDB",
+                "accepting_requests": True,
+                "preferred_response_time": "When available",
+                "preferred_interaction": "Any",
+                "max_connections_per_month": 20
+            }
+        }
     ]
     
     alumni_users = []
-    for name, email, major, grad_year, company, title, bio in alumni_data:
+    for data in alumni_data:
         user = User(
-            email=email,
+            email=data["email"],
             password_hash=pwd_context.hash("password123"),
-            name=name,
-            role=RoleEnum.alumni,
-            major=major,
-            graduation_year=grad_year,
-            company=company,
-            job_title=title,
-            bio=bio,
-            avatar_url=f"https://ui-avatars.com/api/?name={name.replace(' ', '+')}"
+            name=data["name"],
+            role="alumni",
+            major=data["major"],
+            graduation_year=data["graduation_year"],
+            company=data["company"],
+            job_title=data["job_title"],
+            profile_data=data["profile_data"],
+            avatar_url=f"https://ui-avatars.com/api/?name={data['name'].replace(' ', '+')}"
         )
         db.add(user)
         alumni_users.append(user)
     db.commit()
     
-    # Create student profiles
+    # Create 8 STUDENTS
     students_data = [
-        ("Alex Turner", "aturner@gmu.edu", "Computer Science", "Junior", True, 3.7, "CS major passionate about algorithms and data structures. Looking to help fellow students!"),
-        ("Maya Patel", "mpatel@gmu.edu", "Computer Science", "Senior", True, 3.9, "Senior CS student specializing in AI/ML. Love tutoring and helping others succeed."),
-        ("Jordan Lee", "jlee@gmu.edu", "Software Engineering", "Sophomore", False, 3.5, "SWE student exploring web development and mobile apps."),
-        ("Taylor Smith", "tsmith@gmu.edu", "Computer Science", "Junior", True, 3.8, "Junior interested in cybersecurity and systems programming. Happy to tutor!"),
-        ("Casey Johnson", "cjohnson@gmu.edu", "Information Technology", "Freshman", False, 3.4, "First-year IT student learning the ropes. Excited about cloud computing!"),
-        ("Morgan Davis", "mdavis@gmu.edu", "Computer Science", "Senior", True, 3.6, "Senior CS student with internship experience. Can help with interview prep!"),
-        ("Riley Martinez", "rmartinez@gmu.edu", "Computer Science", "Sophomore", True, 3.7, "Sophomore who loves teaching. Strong in math and programming fundamentals."),
-        ("Avery Wilson", "awilson@gmu.edu", "Cyber Security Engineering", "Junior", True, 3.5, "Cybersecurity student passionate about ethical hacking and network security."),
-        ("Cameron Brown", "cbrown@gmu.edu", "Computer Science", "Freshman", False, 3.3, "Freshman CS student eager to learn and connect with others."),
-        ("Drew Anderson", "danderson@gmu.edu", "Software Engineering", "Senior", True, 3.8, "Senior SWE student. Experienced in full-stack development and agile methodologies."),
+        {
+            "name": "Sarah Chen",
+            "email": "schen@gmu.edu",
+            "major": "Computer Science",
+            "year": "Junior",
+            "gpa": 3.7,
+            "profile_data": {
+                "career_goals": "Backend engineer at Google focusing on distributed systems",
+                "target_companies": ["Google", "Amazon", "Meta"],
+                "areas_of_interest": "Distributed systems, cloud computing, backend architecture",
+                "skills": ["Python", "Java", "AWS", "Docker"],
+                "hobbies": "Guitar, hiking, photography",
+                "looking_for": ["Career mentorship from alumni", "Resume and interview help", "Technical interview preparation"],
+                "resume_url": None,
+                "courses_taken": ["CS 310", "CS 367", "CS 471"],
+                "is_tutor": False
+            },
+            "courses": [(4, "B+", False), (7, "A-", False), (8, "B+", False)]  # CS 310, CS 367, CS 471
+        },
+        {
+            "name": "Michael Torres",
+            "email": "mtorres@gmu.edu",
+            "major": "Information Systems",
+            "year": "Senior",
+            "gpa": 3.5,
+            "profile_data": {
+                "career_goals": "Product manager at tech company, interested in fintech",
+                "target_companies": ["Stripe", "Square", "Capital One"],
+                "areas_of_interest": "Product management, fintech, agile methodologies",
+                "skills": ["SQL", "Python", "Tableau", "Agile"],
+                "hobbies": "Basketball, reading business books, volunteering",
+                "looking_for": ["Career mentorship from alumni", "Networking strategies and tips"],
+                "resume_url": None,
+                "courses_taken": ["IT 341", "SYST 460"],
+                "is_tutor": False
+            },
+            "courses": [(16, "A", False), (17, "A-", False)]  # IT 341, SYST 460
+        },
+        {
+            "name": "Emily Johnson",
+            "email": "ejohnson@gmu.edu",
+            "major": "Data Science",
+            "year": "Sophomore",
+            "gpa": 3.9,
+            "profile_data": {
+                "career_goals": "Data scientist working on ML applications in healthcare",
+                "target_companies": ["Google", "Amazon", "Healthcare startups"],
+                "areas_of_interest": "Machine learning, healthcare analytics, data visualization",
+                "skills": ["Python", "R", "TensorFlow", "SQL"],
+                "hobbies": "Yoga, cooking, podcasts",
+                "looking_for": ["Career mentorship from alumni", "Project collaboration partners"],
+                "resume_url": None,
+                "courses_taken": ["CS 112", "STAT 344", "MATH 113"],
+                "is_tutor": True
+            },
+            "courses": [(1, "A", True), (15, "A", True), (12, "A-", True)]  # CS 112, STAT 344, MATH 113
+        },
+        {
+            "name": "Alex Kim",
+            "email": "akim@gmu.edu",
+            "major": "Computer Science",
+            "year": "Freshman",
+            "gpa": 3.3,
+            "profile_data": {
+                "career_goals": "Frontend developer, love building user interfaces",
+                "target_companies": ["Meta", "Apple", "Startups"],
+                "areas_of_interest": "Frontend development, UI/UX design, web technologies",
+                "skills": ["JavaScript", "React", "HTML/CSS", "Git"],
+                "hobbies": "Gaming, anime, graphic design",
+                "looking_for": ["Tutoring (I need help)", "Study partners for specific courses"],
+                "resume_url": None,
+                "courses_taken": ["CS 112", "MATH 113"],
+                "is_tutor": False
+            },
+            "courses": [(1, "B", False), (12, "B+", False)]  # CS 112, MATH 113
+        },
+        {
+            "name": "Jasmine Washington",
+            "email": "jwashington@gmu.edu",
+            "major": "Cyber Security Engineering",
+            "year": "Junior",
+            "gpa": 3.6,
+            "profile_data": {
+                "career_goals": "Security engineer at defense contractor or government",
+                "target_companies": ["Northrop Grumman", "Booz Allen Hamilton", "Government"],
+                "areas_of_interest": "Cybersecurity, penetration testing, network security",
+                "skills": ["Python", "Linux", "Networking", "Penetration testing"],
+                "hobbies": "CTF competitions, mystery novels, swimming",
+                "looking_for": ["Career mentorship from alumni", "Resume and interview help"],
+                "resume_url": None,
+                "courses_taken": ["CYSE 200", "CYSE 330", "CS 310"],
+                "is_tutor": False
+            },
+            "courses": [(18, "A", False), (19, "A-", False), (4, "B+", False)]  # CYSE 200, CYSE 330, CS 310
+        },
+        {
+            "name": "Ryan Martinez",
+            "email": "rmartinez@gmu.edu",
+            "major": "Computer Science",
+            "year": "Junior",
+            "gpa": 3.4,
+            "profile_data": {
+                "career_goals": "Mobile app developer, want to build consumer apps",
+                "target_companies": ["Apple", "Meta", "Startups"],
+                "areas_of_interest": "Mobile development, iOS, React Native",
+                "skills": ["Swift", "React Native", "JavaScript", "Firebase"],
+                "hobbies": "Skateboarding, music production, coffee",
+                "looking_for": ["Career mentorship from alumni", "Project collaboration partners"],
+                "resume_url": None,
+                "courses_taken": ["CS 310", "CS 321", "CS 465"],
+                "is_tutor": True
+            },
+            "courses": [(4, "A", True), (5, "A-", False), (10, "B+", False)]  # CS 310, CS 321, CS 465
+        },
+        {
+            "name": "Aisha Patel",
+            "email": "apatel@gmu.edu",
+            "major": "Data Science",
+            "year": "Senior",
+            "gpa": 3.8,
+            "profile_data": {
+                "career_goals": "ML engineer working on recommendation systems",
+                "target_companies": ["Netflix", "Spotify", "Amazon"],
+                "areas_of_interest": "Machine learning, recommendation systems, data engineering",
+                "skills": ["Python", "PyTorch", "SQL", "Spark"],
+                "hobbies": "Bollywood dancing, traveling, cooking",
+                "looking_for": ["Career mentorship from alumni", "Technical interview preparation"],
+                "resume_url": None,
+                "courses_taken": ["CS 483", "STAT 344", "CS 310"],
+                "is_tutor": True
+            },
+            "courses": [(9, "A", False), (15, "A", True), (4, "A", True)]  # CS 483, STAT 344, CS 310
+        },
+        {
+            "name": "Connor O'Brien",
+            "email": "cobrien@gmu.edu",
+            "major": "Computer Science",
+            "year": "Sophomore",
+            "gpa": 3.1,
+            "profile_data": {
+                "career_goals": "Game developer or graphics programming",
+                "target_companies": ["Epic Games", "Unity", "Game studios"],
+                "areas_of_interest": "Game development, graphics programming, 3D modeling",
+                "skills": ["C++", "Unity", "Blender", "OpenGL"],
+                "hobbies": "Gaming, 3D modeling, streaming",
+                "looking_for": ["Tutoring (I need help)", "Project collaboration partners"],
+                "resume_url": None,
+                "courses_taken": ["CS 112", "CS 262", "MATH 203"],
+                "is_tutor": False
+            },
+            "courses": [(1, "B", False), (3, "B-", False), (14, "B+", False)]  # CS 112, CS 262, MATH 203
+        }
     ]
     
     student_users = []
-    for name, email, major, year, is_tutor, gpa, bio in students_data:
+    for data in students_data:
         user = User(
-            email=email,
+            email=data["email"],
             password_hash=pwd_context.hash("password123"),
-            name=name,
-            role=RoleEnum.student,
-            major=major,
-            year=year,
-            is_tutor=is_tutor,
-            gpa=gpa,
-            bio=bio,
-            avatar_url=f"https://ui-avatars.com/api/?name={name.replace(' ', '+')}"
+            name=data["name"],
+            role="student",
+            major=data["major"],
+            year=data["year"],
+            gpa=data["gpa"],
+            profile_data=data["profile_data"],
+            avatar_url=f"https://ui-avatars.com/api/?name={data['name'].replace(' ', '+')}"
         )
         db.add(user)
         student_users.append(user)
     db.commit()
     
-    # Add courses for tutors
-    tutor_courses = [
-        (student_users[0], [0, 1, 2, 10, 11, 13], ["A", "A-", "A", "A", "B+", "A"]),  # Alex - CS 112, 211, 310, MATH 113, 114, 125
-        (student_users[1], [2, 3, 6, 8, 18], ["A", "A", "A-", "A", "A"]),  # Maya - CS 310, 330, 465, 483, SWE 432
-        (student_users[3], [1, 2, 4, 6, 7], ["A-", "A", "B+", "A", "A-"]),  # Taylor - CS 211, 310, 367, 465, 471
-        (student_users[5], [0, 1, 2, 5, 18, 19], ["A", "A", "A-", "A", "A", "B+"]),  # Morgan - CS 112, 211, 310, 450, SWE 432, 437
-        (student_users[6], [0, 1, 10, 11, 13], ["A", "A", "A", "A-", "A"]),  # Riley - CS 112, 211, MATH 113, 114, 125
-        (student_users[7], [1, 2, 4, 16], ["B+", "A-", "A", "A"]),  # Avery - CS 211, 310, 367, ECE 301
-        (student_users[9], [2, 5, 18, 19], ["A", "A", "A", "A-"]),  # Drew - CS 310, 450, SWE 432, 437
-    ]
-    
-    for student, course_indices, grades in tutor_courses:
-        for idx, grade in zip(course_indices, grades):
+    # Link students to courses
+    for idx, data in enumerate(students_data):
+        for course_idx, grade, can_tutor in data["courses"]:
             sc = StudentCourse(
-                user_id=student.id,
-                course_id=courses[idx].id,
+                user_id=student_users[idx].id,
+                course_id=courses[course_idx].id,
                 grade=grade,
-                can_tutor=True
+                can_tutor=can_tutor
             )
             db.add(sc)
-    db.commit()
-    
-    # Add courses for non-tutor students
-    non_tutor_courses = [
-        (student_users[2], [0, 1, 10, 15], ["B+", "B", "A-", "A"]),  # Jordan
-        (student_users[4], [0, 15], ["B", "B+"]),  # Casey
-        (student_users[8], [0, 10, 15], ["B", "B+", "A-"]),  # Cameron
-    ]
-    
-    for student, course_indices, grades in non_tutor_courses:
-        for idx, grade in zip(course_indices, grades):
-            sc = StudentCourse(
-                user_id=student.id,
-                course_id=courses[idx].id,
-                grade=grade,
-                can_tutor=False
-            )
-            db.add(sc)
-    db.commit()
-    
-    # Create help requests
-    help_requests_data = [
-        (student_users[2], courses[2].id, "Need help with Binary Search Trees", "I'm struggling to understand BST insertion and deletion. Could really use some guidance before my exam next week.", True),
-        (student_users[4], courses[0].id, "Java loops and arrays confusion", "Having trouble with nested loops and 2D arrays. Would appreciate some tutoring help!", False),
-        (student_users[8], courses[1].id, "Object-oriented design principles", "Need help understanding inheritance and polymorphism for my project.", False),
-        (student_users[2], courses[18].id, "React hooks and state management", "Working on a web project and confused about useEffect and useState hooks.", True),
-        (student_users[4], courses[10].id, "Calculus integration techniques", "Struggling with integration by parts and substitution methods.", False),
-    ]
-    
-    for student, course_id, title, desc, urgent in help_requests_data:
-        req = HelpRequest(
-            student_id=student.id,
-            course_id=course_id,
-            title=title,
-            description=desc,
-            urgent=urgent,
-            status=RequestStatus.open
-        )
-        db.add(req)
     db.commit()
     
     print("✅ Database seeded successfully!")
     print(f"   - {len(courses)} courses")
     print(f"   - {len(alumni_users)} alumni")
     print(f"   - {len(student_users)} students")
-    print(f"   - 8 tutors with course assignments")
-    print(f"   - 5 open help requests")
+    print(f"   - 3 tutors (Emily, Ryan, Aisha)")
     
     db.close()
 

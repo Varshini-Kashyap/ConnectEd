@@ -1,21 +1,34 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
-import LoginForm from './components/LoginForm';
+import Login from './pages/Login';
+import Signup from './pages/Signup';
+import Questionnaire from './pages/Questionnaire';
 import StreamSelector from './components/StreamSelector';
 import Career from './pages/Career';
 import Student from './pages/Student';
 import Profile from './pages/Profile';
 
 function ProtectedRoute({ children }) {
-  const { isAuthenticated } = useAuthStore();
-  return isAuthenticated ? children : <Navigate to="/login" />;
+  const { isAuthenticated, user } = useAuthStore();
+  
+  if (!isAuthenticated) {
+    return <Navigate to="/login" />;
+  }
+  
+  if (user && !user.profile_completed) {
+    return <Navigate to="/questionnaire" />;
+  }
+  
+  return children;
 }
 
 function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/login" element={<LoginForm />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/questionnaire" element={<Questionnaire />} />
         <Route
           path="/stream-selector"
           element={
@@ -48,7 +61,7 @@ function App() {
             </ProtectedRoute>
           }
         />
-        <Route path="/" element={<Navigate to="/stream-selector" />} />
+        <Route path="/" element={<Navigate to="/login" />} />
       </Routes>
     </Router>
   );
