@@ -5,9 +5,89 @@ from typing import List, Optional
 import models, schemas
 from database import get_db, engine
 from auth import verify_password, get_password_hash, create_access_token, get_current_user
-from ai_service import match_tutors_with_request, draft_outreach_message, explain_match, search_alumni_strict, search_alumni_closest_match
+from ai_service import (
+    match_tutors_with_request,
+    draft_outreach_message,
+    explain_match,
+    search_alumni_strict,
+    search_alumni_closest_match,
+    search_alumni_three_step,
+    search_students_natural_language,
+)
 from matching import compute_career_match, compute_tutor_match
 from resume_service import parse_resume, encode_file_to_base64
+
+
+def _student_alum_dicts(student, alum):
+    """Build dicts for compute_career_match and explain_match."""
+    sp = student.profile_data or {}
+    ap = alum.profile_data or {}
+    student_dict = {
+        "major": student.major,
+        "year": student.year,
+        "company_wishlist": sp.get("target_companies", []),
+        "resume_text": sp.get("resume_text", ""),
+    }
+    alum_dict = {
+        "major": alum.major,
+        "company": alum.company,
+        "graduation_year": alum.graduation_year,
+        "accepting_connections": ap.get("accepting_requests", True),
+    }
+    return student_dict, alum_dict
+
+
+def get_cached_career_match_score(db: Session, student_id: str, target_id: str):
+    """Return cached match_score or None."""
+    row = db.query(models.CareerMatchCache).filter(
+        models.CareerMatchCache.student_id == student_id,
+        models.CareerMatchCache.target_id == target_id,
+    ).first()
+    return row.match_score if row else None
+
+
+def get_or_compute_career_match_score(db: Session, student, alum):
+    """Return match_score for (student, alum), from cache or compute once and cache."""
+    if not student or not student.profile_data:
+        return 50
+    cached = get_cached_career_match_score(db, student.id, alum.id)
+    if cached is not None:
+        return cached
+    student_dict, alum_dict = _student_alum_dicts(student, alum)
+    score = compute_career_match(student_dict, alum_dict)
+    db.add(models.CareerMatchCache(student_id=student.id, target_id=alum.id, match_score=score, reasons=None))
+    db.commit()
+    return score
+
+
+def get_or_compute_match_explanation(db: Session, student, target):
+    """Return (match_score, reasons) for (student, target), from cache or compute once and cache."""
+    student_dict = {
+        "major": student.major,
+        "interests": (student.profile_data or {}).get("areas_of_interest", ""),
+        "resume_text": (student.profile_data or {}).get("resume_text", ""),
+    }
+    target_dict = {"major": target.major, "job_title": target.job_title, "company": target.company}
+    row = db.query(models.CareerMatchCache).filter(
+        models.CareerMatchCache.student_id == student.id,
+        models.CareerMatchCache.target_id == target.id,
+    ).first()
+    if row and row.reasons is not None:
+        return row.match_score, row.reasons
+    # Compute score (use cached if we have it)
+    score = get_cached_career_match_score(db, student.id, target.id)
+    if score is None:
+        s_dict, t_dict = _student_alum_dicts(student, target)
+        score = compute_career_match(s_dict, t_dict)
+    reasons = explain_match(student_dict, target_dict, score)
+    if row:
+        row.match_score = score
+        row.reasons = reasons
+    else:
+        db.add(models.CareerMatchCache(student_id=student.id, target_id=target.id, match_score=score, reasons=reasons))
+    db.commit()
+    return score, reasons
+
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -139,60 +219,22 @@ def get_alumni(
             "accepting_connections": profile.get("accepting_requests", True)
         }
         
-        if student and student.profile_data:
-            student_dict = {
-                "major": student.major,
-                "year": student.year,
-                "company_wishlist": student.profile_data.get("target_companies", []),
-                "resume_text": student.profile_data.get("resume_text", "")
-            }
-            match_score = compute_career_match(student_dict, alum_dict)
-            alum_dict["match_score"] = match_score
+        if student:
+            alum_dict["match_score"] = get_or_compute_career_match_score(db, student, alum)
         else:
             alum_dict["match_score"] = 50
         
         result.append(alum_dict)
     
-    # When q is provided: single-word = keyword + semantic; multi-word = analyze full DB for closest match (ignore profile match %)
+    # When q is provided: extract intent (Claude) → search by keywords + semantic → rank → top results
     if q and q.strip():
-        q_clean = q.strip()
-        words = [w for w in q_clean.split() if len(w) >= 2]
-        if not words:
-            words = [q_clean]
-
-        # Multi-word: analyze full database, return closest matches only (no keyword filter, no match_score)
-        if len(words) > 1:
-            alumni_for_search = [
-                {"id": r["id"], "name": r["name"], "company": r["company"], "job_title": r["job_title"], "major": r["major"], "bio": r["bio"]}
-                for r in result
-            ]
-            search_result = search_alumni_closest_match(q_clean, alumni_for_search, top_n=15)
-            id_to_full = {r["id"]: r for r in result}
-            result = [id_to_full[s["id"]] for s in search_result if s["id"] in id_to_full]
-        else:
-            # Single-word: keyword/regex filter then semantic rank
-            def text_contains(record: dict, term: str) -> bool:
-                term_lower = term.lower()
-                for field in ("name", "company", "job_title", "major", "bio"):
-                    val = record.get(field) or ""
-                    if term_lower in str(val).lower():
-                        return True
-                return False
-
-            keyword_matches = [r for r in result if text_contains(r, words[0])]
-            candidates = keyword_matches if keyword_matches else result
-            alumni_for_search = [
-                {"id": r["id"], "name": r["name"], "company": r["company"], "job_title": r["job_title"], "major": r["major"], "bio": r["bio"]}
-                for r in candidates
-            ]
-            search_result = search_alumni_strict(q_clean, alumni_for_search, top_n=20)
-            id_to_full = {r["id"]: r for r in result}
-            semantic_ids = {s["id"] for s in search_result}
-            ordered = [id_to_full[s["id"]] for s in search_result if s["id"] in id_to_full]
-            for r in keyword_matches:
-                if r["id"] not in semantic_ids:
-                    ordered.append(r)
-            result = ordered
+        alumni_for_search = [
+            {"id": r["id"], "name": r["name"], "company": r["company"], "job_title": r["job_title"], "major": r["major"], "bio": r["bio"]}
+            for r in result
+        ]
+        search_result = search_alumni_three_step(q.strip(), alumni_for_search, top_n=15)
+        id_to_full = {r["id"]: r for r in result}
+        result = [id_to_full[s["id"]] for s in search_result if s["id"] in id_to_full]
     else:
         result = sorted(result, key=lambda x: x.get("match_score", 0), reverse=True)
 
@@ -342,6 +384,71 @@ def get_notifications(user_id: str = Depends(get_current_user), db: Session = De
             "created_at": c.created_at.isoformat() if c.created_at else None,
         })
     return {"connection_requests": connection_requests, "message_requests": []}
+
+
+# UNIFIED NATURAL-LANGUAGE SEARCH (role-based)
+@app.get("/api/search")
+def natural_language_search(
+    q: Optional[str] = None,
+    role: str = Query("student", regex="^(student|alumni)$"),
+    top_n: int = Query(10, ge=1, le=20),
+    user_id: str = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Step 1: Extract intent & keywords using Claude (role-specific).
+    Step 2: Search DB using extracted keywords + semantic similarity.
+    Step 3: Rank results by relevance.
+    Return: Top N matching profiles (students or alumni based on role).
+    """
+    if not q or not q.strip():
+        return []
+
+    if role == "student":
+        users = db.query(models.User).filter(models.User.role == "student").all()
+        # Exclude current user
+        users = [u for u in users if u.id != user_id]
+        students_list = []
+        for u in users:
+            profile = u.profile_data or {}
+            looking_for = profile.get("looking_for", [])
+            looking_for_str = ", ".join(looking_for) if isinstance(looking_for, list) else str(looking_for)
+            courses_taken = profile.get("courses_taken", [])
+            courses_str = ", ".join(courses_taken) if isinstance(courses_taken, list) else str(courses_taken)
+            students_list.append({
+                "id": u.id,
+                "name": u.name,
+                "major": u.major or "",
+                "year": u.year or "",
+                "avatar_url": u.avatar_url,
+                "hobbies": profile.get("hobbies", ""),
+                "areas_of_interest": profile.get("areas_of_interest", ""),
+                "looking_for_str": looking_for_str,
+                "courses_str": courses_str,
+                "gpa": float(u.gpa) if u.gpa else None,
+            })
+        result = search_students_natural_language(q.strip(), students_list, top_n=top_n)
+        return result
+
+    # role == "alumni"
+    alumni = db.query(models.User).filter(models.User.role == "alumni").all()
+    alumni_list = []
+    for alum in alumni:
+        profile = alum.profile_data or {}
+        bio = profile.get("expertise_areas", "") or profile.get("career_journey", "") or ""
+        alumni_list.append({
+            "id": alum.id,
+            "name": alum.name,
+            "company": alum.company or "",
+            "job_title": alum.job_title or "",
+            "major": alum.major or "",
+            "bio": bio,
+            "avatar_url": alum.avatar_url,
+            "graduation_year": alum.graduation_year,
+        })
+    result = search_alumni_three_step(q.strip(), alumni_list, top_n=top_n)
+    return result
+
 
 # STUDENT STREAM ENDPOINTS
 @app.get("/api/tutors")
@@ -523,31 +630,9 @@ def ai_match_explanation(
 ):
     student = db.query(models.User).filter(models.User.id == user_id).first()
     target = db.query(models.User).filter(models.User.id == target_id).first()
-    
     if not student or not target:
         raise HTTPException(status_code=404, detail="User not found")
-    
-    student_profile = student.profile_data or {}
-    target_profile = target.profile_data or {}
-    
-    student_dict = {
-        "major": student.major, 
-        "interests": student_profile.get("areas_of_interest", ""),
-        "resume_text": student_profile.get("resume_text", "")
-    }
-    target_dict = {"major": target.major, "job_title": target.job_title, "company": target.company}
-    
-    match_score = compute_career_match(
-        {
-            "major": student.major, 
-            "year": student.year, 
-            "company_wishlist": student_profile.get("target_companies", []),
-            "resume_text": student_profile.get("resume_text", "")
-        },
-        {"major": target.major, "company": target.company, "graduation_year": target.graduation_year, "accepting_connections": target_profile.get("accepting_requests", True)}
-    )
-    
-    reasons = explain_match(student_dict, target_dict, match_score)
+    match_score, reasons = get_or_compute_match_explanation(db, student, target)
     return {"match_score": match_score, "reasons": reasons}
 
 @app.get("/")

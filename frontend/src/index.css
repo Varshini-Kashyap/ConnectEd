@@ -284,3 +284,17 @@ body {
   animation: slideUp 0.5s ease-out forwards;
   opacity: 0;
 }
+
+/* MessageModal portal animations */
+@keyframes messageModalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes messageModalSlideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes messageModalSlideDown {
+  from { transform: translateY(-20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}

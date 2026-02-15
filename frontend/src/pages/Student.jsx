@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useStudentStore } from '../stores/studentStore';
 import NavBar from '../components/NavBar';
 import TutorCard from '../components/TutorCard';
 import HelpRequestForm from '../components/HelpRequestForm';
+import PartnerCard from '../components/PartnerCard';
+import { searchAPI } from '../services/api';
 
 export default function Student() {
   const { tutors, requests, courses, fetchTutors, fetchRequests, fetchCourses, loading } = useStudentStore();
@@ -11,6 +13,10 @@ export default function Student() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredTutors, setFilteredTutors] = useState([]);
   const [viewMode, setViewMode] = useState('grid');
+  const [partnerQuery, setPartnerQuery] = useState('');
+  const [partnerResults, setPartnerResults] = useState([]);
+  const [partnerSearching, setPartnerSearching] = useState(false);
+  const [partnerSearched, setPartnerSearched] = useState(false);
 
   useEffect(() => {
     fetchTutors();
@@ -35,8 +41,29 @@ export default function Student() {
     setFilteredTutors(list);
   }, [tutors, selectedCourse, searchTerm, courses]);
 
+  const runPartnerSearch = useCallback(async () => {
+    const q = partnerQuery.trim();
+    if (!q) {
+      setPartnerResults([]);
+      setPartnerSearched(false);
+      return;
+    }
+    setPartnerSearching(true);
+    setPartnerSearched(true);
+    try {
+      const res = await searchAPI.search(q, 'student', 10);
+      setPartnerResults(res.data || []);
+    } catch (err) {
+      console.error('Partner search failed:', err);
+      setPartnerResults([]);
+    } finally {
+      setPartnerSearching(false);
+    }
+  }, [partnerQuery]);
+
   const tabs = [
     { id: 'find', label: 'Find Tutors' },
+    { id: 'partners', label: 'Find Partners' },
     { id: 'post', label: 'Post Help Request' },
     { id: 'my-requests', label: 'My Requests', badge: requests.length },
   ];
@@ -80,6 +107,75 @@ export default function Student() {
             </button>
           ))}
         </div>
+
+        {activeTab === 'partners' && (
+          <div>
+            <p className="text-sm mb-4" style={{ color: 'var(--cream-700)' }}>
+              Search by what you’re looking for. We’ll match you with students who share interests (e.g. swimming partner, study buddy, same major).
+            </p>
+            <div className="relative mb-6 flex gap-2">
+              <div className="flex-1 relative">
+                <svg
+                  className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 pointer-events-none"
+                  style={{ color: 'var(--cream-700)' }}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <circle cx="11" cy="11" r="8" strokeWidth={2} />
+                  <path d="m21 21-4.35-4.35" strokeWidth={2} strokeLinecap="round" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="e.g. I need a swimming partner, find study buddies for CS 310..."
+                  value={partnerQuery}
+                  onChange={(e) => setPartnerQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && runPartnerSearch()}
+                  className="search-box-input pl-12 w-full"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={runPartnerSearch}
+                disabled={partnerSearching || !partnerQuery.trim()}
+                className="btn-primary-warm px-6 shrink-0 disabled:opacity-50"
+              >
+                {partnerSearching ? 'Searching...' : 'Search'}
+              </button>
+            </div>
+            {partnerSearching && (
+              <div className="flex flex-col items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-4 mb-3" style={{ borderColor: 'var(--coral-600)' }} />
+                <p style={{ color: 'var(--cream-700)' }}>Finding matching profiles...</p>
+              </div>
+            )}
+            {!partnerSearching && partnerSearched && (
+              <>
+                <p className="font-dm-sans text-lg font-semibold mb-4" style={{ color: 'var(--cream-900)' }}>
+                  {partnerResults.length} {partnerResults.length === 1 ? 'partner' : 'partners'} found
+                </p>
+                {partnerResults.length === 0 ? (
+                  <div className="text-center py-16 rounded-xl border" style={{ background: 'var(--cream-50)', borderColor: 'var(--cream-300)' }}>
+                    <p className="text-lg mb-2" style={{ color: 'var(--cream-700)' }}>No matching profiles</p>
+                    <p className="text-sm" style={{ color: 'var(--cream-700)' }}>Try different words (e.g. swimming, study partner, gym)</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {partnerResults.map((student) => (
+                      <PartnerCard key={student.id} student={student} />
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+            {!partnerSearching && !partnerSearched && (
+              <div className="text-center py-16 rounded-xl border" style={{ background: 'var(--cream-50)', borderColor: 'var(--cream-300)' }}>
+                <p className="text-lg mb-2" style={{ color: 'var(--cream-700)' }}>Search for partners</p>
+                <p className="text-sm" style={{ color: 'var(--cream-700)' }}>Type something like &quot;I need a swimming partner&quot; and click Search</p>
+              </div>
+            )}
+          </div>
+        )}
 
         {activeTab === 'find' && (
           <div>

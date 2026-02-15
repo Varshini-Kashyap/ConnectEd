@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useCareerStore } from '../stores/careerStore';
 import { aiAPI } from '../services/api';
 
@@ -7,6 +8,7 @@ export default function MessageModal({ target, targetType, onClose }) {
   const [loading, setLoading] = useState(false);
   const [draftLoading, setDraftLoading] = useState(true);
   const [toast, setToast] = useState(null);
+  const openedAtRef = useRef(Date.now());
   const { sendConnection } = useCareerStore();
 
   useEffect(() => {
@@ -53,10 +55,29 @@ export default function MessageModal({ target, targetType, onClose }) {
     }
   };
 
-  return (
-    <>
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fadeIn">
-        <div className="bg-white rounded-lg p-8 max-w-2xl w-full shadow-2xl animate-slideUp">
+  const handleBackdropClick = (e) => {
+    e.stopPropagation();
+    if (e.target !== e.currentTarget) return;
+    if (Date.now() - openedAtRef.current < 300) return;
+    onClose();
+  };
+
+  const modalContent = (
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[100]"
+      style={{ animation: 'messageModalFadeIn 0.2s ease-out' }}
+      onClick={handleBackdropClick}
+      onMouseDown={(e) => e.stopPropagation()}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="message-modal-title"
+    >
+      <div
+        className="bg-white rounded-lg p-8 max-w-2xl w-full shadow-2xl"
+        style={{ animation: 'messageModalSlideUp 0.3s ease-out' }}
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
           {/* Alumni Info Header */}
           <div className="flex items-center mb-6 pb-4 border-b">
             <img
@@ -65,7 +86,7 @@ export default function MessageModal({ target, targetType, onClose }) {
               className="w-16 h-16 rounded-full mr-4"
             />
             <div>
-              <h3 className="text-2xl font-bold text-gmu-green">{target.name}</h3>
+              <h3 id="message-modal-title" className="text-2xl font-bold text-gmu-green">{target.name}</h3>
               <p className="text-gray-600">{target.job_title} at {target.company}</p>
               <p className="text-sm text-gray-500">{target.major} • Class of {target.graduation_year}</p>
             </div>
@@ -129,34 +150,23 @@ export default function MessageModal({ target, targetType, onClose }) {
             </button>
           </div>
         </div>
-      </div>
+    </div>
+  );
 
-      {/* Toast Notification */}
-      {toast && (
-        <div className={`fixed top-4 right-4 z-[60] px-6 py-4 rounded-lg shadow-lg animate-slideDown ${
-          toast.type === 'success' ? 'bg-green-500' : 'bg-red-500'
-        } text-white font-semibold`}>
+  return (
+    <>
+      {createPortal(modalContent, document.body)}
+      {toast && createPortal(
+        <div
+          className={`fixed top-4 right-4 z-[110] px-6 py-4 rounded-lg shadow-lg ${
+            toast.type === 'success' ? 'bg-green-500' : 'bg-red-500'
+          } text-white font-semibold`}
+          style={{ animation: 'messageModalSlideDown 0.3s ease-out' }}
+        >
           {toast.message}
-        </div>
+        </div>,
+        document.body
       )}
-
-      <style jsx>{`
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes slideUp {
-          from { transform: translateY(20px); opacity: 0; }
-          to { transform: translateY(0); opacity: 1; }
-        }
-        @keyframes slideDown {
-          from { transform: translateY(-20px); opacity: 0; }
-          to { transform: translateY(0); opacity: 1; }
-        }
-        .animate-fadeIn { animation: fadeIn 0.2s ease-out; }
-        .animate-slideUp { animation: slideUp 0.3s ease-out; }
-        .animate-slideDown { animation: slideDown 0.3s ease-out; }
-      `}</style>
     </>
   );
 }

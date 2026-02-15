@@ -52,6 +52,12 @@ export const studentAPI = {
   getCourses: () => api.get('/courses'),
 };
 
+/** Natural-language search: extract intent (Claude) → search DB by role → rank → top N. */
+export const searchAPI = {
+  search: (q, role = 'student', topN = 10) =>
+    api.get('/search', { params: { q, role, top_n: topN } }),
+};
+
 export const aiAPI = {
   draftMessage: (data) => api.post('/ai/draft-message', data),
   getMatchExplanation: (targetId) => api.get(`/ai/match-explanation/${targetId}`),

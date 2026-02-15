@@ -1,11 +1,46 @@
 from groq import Groq
 import os
+import re
 from dotenv import load_dotenv
 import json
 
 load_dotenv()
 
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+
+# Model choice: 70b is better quality but uses more tokens (100k TPD on free tier).
+# Use GROQ_MODEL=llama-3.1-8b-instant for 5x token headroom (500k TPD) when hitting rate limits.
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+GROQ_MODEL_FALLBACK = "llama-3.1-8b-instant"  # smaller model, higher rate limits
+
+
+def _is_rate_limit(err):
+    """Check if exception is Groq 429 rate limit."""
+    msg = str(err).lower()
+    return "429" in msg or "rate limit" in msg or "rate_limit" in msg
+
+
+def _groq_create(model: str, messages: list, temperature: float = 0.2, max_tokens: int = 512):
+    """Call Groq API; returns response or None. Tries fallback model on 429."""
+    try:
+        return client.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+    except Exception as e:
+        if _is_rate_limit(e) and model == GROQ_MODEL and model != GROQ_MODEL_FALLBACK:
+            try:
+                return client.chat.completions.create(
+                    model=GROQ_MODEL_FALLBACK,
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                )
+            except Exception:
+                raise e
+        raise
 
 def match_tutors_with_request(help_request, available_tutors, course_info):
     """Use Groq AI to intelligently match tutors with help requests"""
@@ -83,17 +118,18 @@ Write a 3-4 sentence message that:
 
 Return only the message text, no subject line or extra formatting."""
     
+    fallback = f"Hi {target['name']}, I'm {student['name']}, a {student.get('year', '')} {student.get('major', '')} student at GMU. I'd love to connect and learn from your experience. Would you be open to a brief conversation?"
     try:
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": prompt}],
+        response = _groq_create(
+            GROQ_MODEL,
+            [{"role": "user", "content": prompt}],
             temperature=0.7,
-            max_tokens=256
+            max_tokens=256,
         )
-        return response.choices[0].message.content.strip()
+        return (response.choices[0].message.content or "").strip() or fallback
     except Exception as e:
         print(f"AI draft error: {e}")
-        return f"Hi {target['name']}, I'm {student['name']}, a {student.get('year', '')} {student.get('major', '')} student at GMU. I'd love to connect and learn from your experience. Would you be open to a brief conversation?"
+        return fallback
 
 # --- Alumni search: strict (single-word) and closest-match (multi-word) ---
 
@@ -149,9 +185,7 @@ Return ONLY a JSON array of profile ids, e.g. ["id1", "id2", "id3"]. No other te
             temperature=0.1,
             max_tokens=1024,
         )
-        text = response.choices[0].message.content.strip()
-        if "" in text:
-            text = text.split("")[1].replace("json", "").strip()
+        text = _strip_json_text(response.choices[0].message.content)
         ids = json.loads(text)
         if not isinstance(ids, list):
             ids = [ids] if ids else []
@@ -214,9 +248,7 @@ Return ONLY a JSON array of profile ids, e.g. ["id1", "id2"]. No other text, no 
             temperature=0,
             max_tokens=1024,
         )
-        text = response.choices[0].message.content.strip()
-        if "" in text:
-            text = text.split("")[1].replace("json", "").strip()
+        text = _strip_json_text(response.choices[0].message.content)
         ids = json.loads(text)
         if not isinstance(ids, list):
             ids = [ids] if ids else []
@@ -229,17 +261,173 @@ Return ONLY a JSON array of profile ids, e.g. ["id1", "id2"]. No other text, no 
         return alumni_list[:top_n]
 
 
-def extract_search_intent(query: str) -> dict:
+TOP_STUDENT_SEARCH_RESULTS = 10
+
+
+def _strip_json_text(text: str) -> str:
+    """Remove markdown code blocks and trim."""
+    if not text:
+        return ""
+    t = text.strip()
+    if "```" in t:
+        t = t.split("```")[1]
+        if t.lower().startswith("json"):
+            t = t[4:]
+        t = t.strip()
+    return t
+
+
+# Stop words to exclude when deriving keywords from raw query (fallback when LLM fails)
+_STOP_WORDS = frozenset({
+    "i", "me", "my", "we", "our", "you", "your", "he", "she", "it", "they", "them",
+    "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with",
+    "is", "are", "was", "were", "be", "been", "being", "have", "has", "had", "do", "does", "did",
+    "need", "want", "find", "looking", "someone", "who", "like", "likes", "people", "person",
+    "can", "could", "would", "will", "that", "this", "from",
+})
+
+
+def _query_to_keywords(query: str) -> list:
+    """Derive searchable keywords from raw query when LLM intent is empty or fails. Removes stop words."""
+    if not query or not query.strip():
+        return []
+    words = re.findall(r"[a-zA-Z0-9]+", query.strip().lower())
+    return [w for w in words if len(w) >= 2 and w not in _STOP_WORDS]
+
+
+def _regex_keyword_score(text: str, terms: list) -> float:
+    """
+    Accurate regex + keyword matching. Normalizes text, tries word-boundary then substring.
+    Multi-word terms supported; score = proportion of terms that matched, in [0, 1].
+    """
+    if not terms:
+        return 0.0
+    if not text or not str(text).strip():
+        return 0.0
+    text_norm = " " + re.sub(r"\s+", " ", str(text).lower()) + " "
+    matched = 0
+    for term in terms:
+        if not term or not str(term).strip():
+            continue
+        t = str(term).strip().lower()
+        if not t:
+            continue
+        try:
+            escaped = re.escape(t)
+            word_boundary = r"(?<!\w)" + escaped + r"(?!\w)"
+            if re.search(word_boundary, text_norm):
+                matched += 1
+            elif t in text_norm:
+                matched += 0.85
+        except Exception:
+            if t in text_norm:
+                matched += 0.85
+    return min(1.0, matched / max(1, len([x for x in terms if x and str(x).strip()])))
+
+
+def _all_regex_terms_alumni(intent: dict, query: str) -> list:
+    """All terms used for regex scoring (alumni). Ensures query-derived keywords if intent empty."""
+    terms = []
+    terms.extend(intent.get("keywords") or [])
+    terms.extend(intent.get("companies") or [])
+    terms.extend(intent.get("job_titles_or_roles") or [])
+    terms.extend(intent.get("majors") or [])
+    if not terms and query:
+        terms.extend(_query_to_keywords(query))
+    return terms
+
+
+def _all_regex_terms_student(intent: dict, query: str) -> list:
+    """All terms used for regex scoring (student). Ensures query-derived keywords if intent empty."""
+    terms = []
+    terms.extend(intent.get("keywords") or [])
+    terms.extend(intent.get("hobbies_or_activities") or [])
+    terms.extend(intent.get("courses_or_subjects") or [])
+    terms.extend(intent.get("looking_for_terms") or [])
+    if not terms and query:
+        terms.extend(_query_to_keywords(query))
+    return terms
+
+
+def _regex_score_alumni(profile: dict, intent: dict, query: str = "") -> float:
+    """Regex score for alumni profile. Uses intent + query-derived keywords."""
+    terms = _all_regex_terms_alumni(intent, query)
+    text = " ".join([
+        str(profile.get("company") or ""),
+        str(profile.get("job_title") or ""),
+        str(profile.get("major") or ""),
+        str(profile.get("bio") or ""),
+    ])
+    return _regex_keyword_score(text, terms)
+
+
+def _regex_score_student(profile: dict, intent: dict, query: str = "") -> float:
+    """Regex score for student profile. Uses intent + query-derived keywords."""
+    terms = _all_regex_terms_student(intent, query)
+    text = " ".join([
+        str(profile.get("hobbies") or ""),
+        str(profile.get("areas_of_interest") or ""),
+        str(profile.get("looking_for_str") or ""),
+        str(profile.get("courses_str") or ""),
+    ])
+    return _regex_keyword_score(text, terms)
+
+
+def _combine_regex_semantic_ranking(
+    id_list: list,
+    id_to_profile: dict,
+    intent: dict,
+    role: str,
+    top_n: int,
+    query: str = "",
+) -> list:
+    """
+    Combine regex (keyword) score with semantic (LLM) rank.
+    semantic_score = 1 - rank_index/len (top = 1). regex_score from intent + query fallback.
+    combined = 0.5 * semantic + 0.5 * regex. Sort by combined desc. When regex dominates (no LLM),
+    results are still accurate by keyword match.
+    """
+    if not id_list:
+        return []
+    n = len(id_list)
+    score_regex = (
+        _regex_score_alumni if role == "alumni" else _regex_score_student
+    )
+    scored = []
+    for i, pid in enumerate(id_list):
+        profile = id_to_profile.get(pid)
+        if not profile:
+            continue
+        semantic_score = 1.0 - (i / max(1, n))
+        regex_s = score_regex(profile, intent, query)
+        combined = 0.5 * semantic_score + 0.5 * regex_s
+        scored.append((pid, combined))
+    scored.sort(key=lambda x: x[1], reverse=True)
+    return [pid for pid, _ in scored[:top_n]]
+
+
+def extract_search_intent(query: str, role: str = "alumni") -> dict:
     """
     Step 1: Extract intent & keywords from natural-language search using LLM.
+    Role-aware: 'alumni' → companies, job_titles, majors; 'student' → hobbies, activities, looking_for.
     Returns structured filters for DB/keyword search + keywords for semantic ranking.
     """
     if not query or not query.strip():
+        if role == "student":
+            return {"hobbies_or_activities": [], "courses_or_subjects": [], "looking_for_terms": [], "keywords": []}
         return {"companies": [], "job_titles_or_roles": [], "majors": [], "keywords": []}
+
+    if role == "student":
+        return extract_search_intent_student(query.strip())
+    return extract_search_intent_alumni(query.strip())
+
+
+def extract_search_intent_alumni(query: str) -> dict:
+    """Extract intent for alumni directory search (companies, roles, majors, keywords)."""
 
     prompt = f"""You are a search intent extractor for a university alumni directory. The user typed a natural-language search. Extract structured filters and keywords.
 
-User query: "{query.strip()}"
+User query: "{query}"
 
 Extract and return ONLY a valid JSON object with exactly these keys (use empty arrays if not mentioned):
 
@@ -263,15 +451,13 @@ Rules:
 Return ONLY the JSON object, no other text."""
 
     try:
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": prompt}],
+        response = _groq_create(
+            GROQ_MODEL,
+            [{"role": "user", "content": prompt}],
             temperature=0.1,
             max_tokens=512,
         )
-        text = response.choices[0].message.content.strip()
-        if "" in text:
-            text = text.split("")[1].replace("json", "").strip()
+        text = _strip_json_text(response.choices[0].message.content)
         out = json.loads(text)
         return {
             "companies": out.get("companies") or [],
@@ -280,8 +466,52 @@ Return ONLY the JSON object, no other text."""
             "keywords": out.get("keywords") or [],
         }
     except Exception as e:
-        print(f"Extract search intent error: {e}")
+        print(f"Extract search intent (alumni) error: {e}")
         return {"companies": [], "job_titles_or_roles": [], "majors": [], "keywords": []}
+
+
+def extract_search_intent_student(query: str) -> dict:
+    """Extract intent for student/partner search: hobbies, activities, courses, looking_for, keywords."""
+    prompt = f"""You are a search intent extractor for a university STUDENT directory. Students search for study partners, activity partners (e.g. swimming, gym), or people with similar interests. The user typed a natural-language search. Extract structured filters and keywords.
+
+User query: "{query}"
+
+Extract and return ONLY a valid JSON object with exactly these keys (use empty arrays if not mentioned):
+
+1. "hobbies_or_activities": list of hobbies, sports, or activities the user wants to match on (e.g. "swimming", "gym", "running", "guitar", "reading", "coding"). Include common variants. Empty array [] if not specified.
+
+2. "courses_or_subjects": list of courses or subjects (e.g. "CS 310", "Math", "Biology"). Empty array [] if not specified.
+
+3. "looking_for_terms": what kind of connection they want (e.g. "study partner", "workout partner", "swimming partner", "someone to practice with"). Use lowercase. Empty array [] if not specified.
+
+4. "keywords": list of important words from the query for semantic matching (e.g. "swimming", "partner", "gym"). Empty array [] if generic.
+
+Rules:
+- "I need a swimming partner" → hobbies_or_activities: ["swimming"], looking_for_terms: ["partner", "swimming partner"], keywords: ["swimming", "partner"]
+- "find someone to study CS with" → courses_or_subjects: ["CS", "Computer Science"], looking_for_terms: ["study partner"], keywords: ["study", "CS"]
+- "gym buddy" or "workout partner" → hobbies_or_activities: ["gym", "workout"], looking_for_terms: ["buddy", "partner"], keywords: ["gym", "workout", "partner"]
+- "people who like hiking" → hobbies_or_activities: ["hiking"], keywords: ["hiking"]
+
+Return ONLY the JSON object, no other text."""
+
+    try:
+        response = _groq_create(
+            GROQ_MODEL,
+            [{"role": "user", "content": prompt}],
+            temperature=0.1,
+            max_tokens=512,
+        )
+        text = _strip_json_text(response.choices[0].message.content)
+        out = json.loads(text)
+        return {
+            "hobbies_or_activities": out.get("hobbies_or_activities") or [],
+            "courses_or_subjects": out.get("courses_or_subjects") or [],
+            "looking_for_terms": out.get("looking_for_terms") or [],
+            "keywords": out.get("keywords") or [],
+        }
+    except Exception as e:
+        print(f"Extract search intent (student) error: {e}")
+        return {"hobbies_or_activities": [], "courses_or_subjects": [], "looking_for_terms": [], "keywords": []}
 
 
 def _alumni_matches_intent(alum: dict, intent: dict) -> bool:
@@ -300,6 +530,26 @@ def _alumni_matches_intent(alum: dict, intent: dict) -> bool:
             return False
     if intent.get("majors"):
         if not any(m.lower() in major for m in intent["majors"]):
+            return False
+    return True
+
+
+def _student_matches_intent(student: dict, intent: dict) -> bool:
+    """Step 2 helper: does this student match extracted hobbies, courses, looking_for (OR within category, AND across if any specified)."""
+    hobbies = (student.get("hobbies") or "").lower()
+    areas = (student.get("areas_of_interest") or "").lower()
+    looking_for = (student.get("looking_for_str") or "").lower()
+    courses_str = (student.get("courses_str") or "").lower()
+    bio = f"{hobbies} {areas} {looking_for} {courses_str}"
+
+    if intent.get("hobbies_or_activities"):
+        if not any(term.lower() in bio for term in intent["hobbies_or_activities"]):
+            return False
+    if intent.get("courses_or_subjects"):
+        if not any(term.lower() in courses_str or term.lower() in areas for term in intent["courses_or_subjects"]):
+            return False
+    if intent.get("looking_for_terms"):
+        if not any(term in looking_for or term in hobbies or term in areas for term in intent["looking_for_terms"]):
             return False
     return True
 
@@ -337,21 +587,18 @@ Task: Rank these profiles by relevance to the user's search (best match first). 
 Return ONLY a JSON array of ids, e.g. ["id1", "id2", "id3"]. No other text."""
 
     try:
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": prompt}],
+        response = _groq_create(
+            GROQ_MODEL,
+            [{"role": "user", "content": prompt}],
             temperature=0.2,
             max_tokens=512,
         )
-        text = response.choices[0].message.content.strip()
-        if "" in text:
-            text = text.split("")[1].replace("json", "").strip()
+        text = _strip_json_text(response.choices[0].message.content)
         ids = json.loads(text)
         if not isinstance(ids, list):
             ids = [ids] if ids else []
         id_set = {a["id"] for a in alumni_list}
         ordered = [i for i in ids if i in id_set][:top_n]
-        # Append any not in response so we don't drop anyone
         for a in alumni_list:
             if a["id"] not in ordered and len(ordered) < top_n:
                 ordered.append(a["id"])
@@ -371,20 +618,23 @@ def search_alumni_three_step(query: str, alumni_list: list, top_n: int = TOP_ALU
     if not alumni_list:
         return []
 
-    # Step 1: Extract intent & keywords
-    intent = extract_search_intent(query.strip())
+    # Step 1: Extract intent & keywords (alumni-specific); fallback to query-derived keywords if LLM fails/empty
+    q_clean = query.strip()
+    intent = extract_search_intent(q_clean, role="alumni")
+    if not (intent.get("keywords") or intent.get("companies") or intent.get("job_titles_or_roles") or intent.get("majors")):
+        intent["keywords"] = _query_to_keywords(q_clean)
 
-    # Step 2: Filter by extracted keywords (AND logic: company AND role AND major when specified)
+    # Step 2: Filter by extracted keywords (AND logic when multiple; relax if over-filtered)
     filtered = [a for a in alumni_list if _alumni_matches_intent(a, intent)]
 
-    # If filter too strict, relax: require only company OR role match (no AND)
+    # If filter too strict, relax: company OR role match, or any keyword in profile text
     if not filtered and (intent.get("companies") or intent.get("job_titles_or_roles")):
         seen_ids = set()
         for a in alumni_list:
             company = (a.get("company") or "").lower()
             job_title = (a.get("job_title") or "").lower()
             bio = (a.get("bio") or "").lower()
-            combined = f"{job_title} {bio}"
+            combined = f"{company} {job_title} {bio}"
             if intent.get("companies") and any(c.lower() in company for c in intent["companies"]):
                 if a["id"] not in seen_ids:
                     seen_ids.add(a["id"])
@@ -394,22 +644,134 @@ def search_alumni_three_step(query: str, alumni_list: list, top_n: int = TOP_ALU
                     seen_ids.add(a["id"])
                     filtered.append(a)
         if not filtered:
-            filtered = list(alumni_list)  # fallback: show all, let ranking decide
-
+            filtered = list(alumni_list)
+    if not filtered and intent.get("keywords"):
+        for a in alumni_list:
+            combined = " ".join([
+                str(a.get("company") or ""),
+                str(a.get("job_title") or ""),
+                str(a.get("major") or ""),
+                str(a.get("bio") or ""),
+            ]).lower()
+            if any(kw.lower() in combined for kw in intent["keywords"]):
+                filtered.append(a)
     if not filtered:
         filtered = list(alumni_list)
 
-    # Step 3: Rank by relevance, return top N
-    ordered_ids = rank_alumni_by_relevance(query.strip(), intent, filtered, top_n=top_n)
+    # Step 3: Semantic rank (LLM), then combine with regex keyword score
+    ordered_ids = rank_alumni_by_relevance(q_clean, intent, filtered, top_n=top_n)
     id_to_alum = {a["id"]: a for a in filtered}
-    return [id_to_alum[aid] for aid in ordered_ids if aid in id_to_alum]
+    combined_ids = _combine_regex_semantic_ranking(
+        ordered_ids, id_to_alum, intent, "alumni", top_n, query=q_clean
+    )
+    return [id_to_alum[aid] for aid in combined_ids if aid in id_to_alum]
+
+
+def rank_students_by_relevance(query: str, intent: dict, students_list: list, top_n: int = TOP_STUDENT_SEARCH_RESULTS) -> list:
+    """
+    Step 3 (students): Rank filtered students by relevance to the query and intent.
+    Returns list of student ids in order of relevance (best first), max top_n.
+    """
+    if not students_list:
+        return []
+    if len(students_list) <= top_n and not intent.get("keywords"):
+        return [s["id"] for s in students_list]
+
+    summaries = []
+    for s in students_list:
+        summaries.append({
+            "id": s["id"],
+            "name": s.get("name") or "",
+            "major": s.get("major") or "",
+            "year": s.get("year") or "",
+            "hobbies": (s.get("hobbies") or "")[:200],
+            "areas_of_interest": (s.get("areas_of_interest") or "")[:200],
+            "looking_for": (s.get("looking_for_str") or "")[:200],
+        })
+
+    prompt = f"""You are a relevance ranker for a university STUDENT directory (finding study partners, activity partners, etc.). The user searched: "{query}"
+
+Extracted intent: hobbies/activities={intent.get('hobbies_or_activities')}, courses={intent.get('courses_or_subjects')}, looking_for={intent.get('looking_for_terms')}, keywords={intent.get('keywords')}
+
+Student profiles (already pre-filtered; now rank by relevance):
+{json.dumps(summaries, indent=2)}
+
+Task: Rank these profiles by relevance to the user's search (best match first). Return exactly the top {top_n} profile ids in order of relevance. If there are fewer than {top_n}, return all in ranked order.
+
+Return ONLY a JSON array of ids, e.g. ["id1", "id2", "id3"]. No other text."""
+
+    try:
+        response = _groq_create(
+            GROQ_MODEL,
+            [{"role": "user", "content": prompt}],
+            temperature=0.2,
+            max_tokens=512,
+        )
+        text = _strip_json_text(response.choices[0].message.content)
+        ids = json.loads(text)
+        if not isinstance(ids, list):
+            ids = [ids] if ids else []
+        id_set = {s["id"] for s in students_list}
+        ordered = [i for i in ids if i in id_set][:top_n]
+        for s in students_list:
+            if s["id"] not in ordered and len(ordered) < top_n:
+                ordered.append(s["id"])
+        return ordered
+    except Exception as e:
+        print(f"Rank students error: {e}")
+        return [s["id"] for s in students_list][:top_n]
+
+
+def search_students_natural_language(query: str, students_list: list, top_n: int = TOP_STUDENT_SEARCH_RESULTS) -> list:
+    """
+    Full pipeline for students: Extract intent (Claude) → Filter by hobbies/courses/looking_for → Rank by relevance.
+    Returns list of student dicts in relevance order, max top_n. Use for "I need a swimming partner" style queries.
+    """
+    if not query or not query.strip():
+        return students_list[:top_n] if students_list else []
+    if not students_list:
+        return []
+
+    # Step 1: Extract intent (student-specific); fallback to query-derived keywords if LLM fails/empty
+    q_clean = query.strip()
+    intent = extract_search_intent(q_clean, role="student")
+    if not (intent.get("keywords") or intent.get("hobbies_or_activities") or intent.get("courses_or_subjects") or intent.get("looking_for_terms")):
+        intent["keywords"] = _query_to_keywords(q_clean)
+
+    # Step 2: Filter by hobbies, courses, looking_for; if only keywords (e.g. fallback), match any keyword in text
+    filtered = [s for s in students_list if _student_matches_intent(s, intent)]
+    if not filtered and intent.get("keywords"):
+        for s in students_list:
+            combined = " ".join([
+                str(s.get("hobbies") or ""),
+                str(s.get("areas_of_interest") or ""),
+                str(s.get("looking_for_str") or ""),
+                str(s.get("courses_str") or ""),
+            ]).lower()
+            if any(kw.lower() in combined for kw in intent["keywords"]):
+                filtered.append(s)
+    if not filtered:
+        filtered = list(students_list)
+
+    # Step 3: Semantic rank (LLM), then combine with regex keyword score
+    ordered_ids = rank_students_by_relevance(q_clean, intent, filtered, top_n=top_n)
+    id_to_student = {s["id"]: s for s in filtered}
+    combined_ids = _combine_regex_semantic_ranking(
+        ordered_ids, id_to_student, intent, "student", top_n, query=q_clean
+    )
+    return [id_to_student[sid] for sid in combined_ids if sid in id_to_student]
 
 
 def explain_match(student, target, match_score):
-    """Generate AI explanation for match score"""
-    student_resume = student.get('resume_text', '')
-    resume_snippet = student_resume[:500] if student_resume else ''
-    
+    """Generate AI explanation for match score. Uses fallback model on 429; returns safe fallback on any error."""
+    fallback_reasons = [
+        "Shared major or field of study",
+        "Relevant experience in target company",
+        "Strong profile match",
+    ]
+    student_resume = student.get("resume_text", "")
+    resume_snippet = student_resume[:500] if student_resume else ""
+
     prompt = f"""Explain why this is a {match_score}% match between a student and target.
 
 Student: {student.get('major', 'GMU student')}, interested in {student.get('interests', 'career growth')}
@@ -419,16 +781,19 @@ Target: {target.get('major', '')} graduate, {target.get('job_title', '')} at {ta
 
 Provide 2-3 bullet points explaining the match. Be specific and concise. If resume content is provided, use it to find connections.
 Return as JSON array: ["reason 1", "reason 2", "reason 3"]"""
-    
+
     try:
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": prompt}],
+        response = _groq_create(
+            GROQ_MODEL,
+            [{"role": "user", "content": prompt}],
             temperature=0.5,
-            max_tokens=256
+            max_tokens=256,
         )
-        text = response.choices[0].message.content.strip()
-        return json.loads(text)
+        text = (response.choices[0].message.content or "").strip()
+        if not text:
+            return fallback_reasons
+        parsed = json.loads(_strip_json_text(text))
+        return parsed if isinstance(parsed, list) and parsed else fallback_reasons
     except Exception as e:
         print(f"AI explanation error: {e}")
-        return ["Shared major or field of study", "Relevant experience in target company", "Strong profile match"]
+        return fallback_reasons

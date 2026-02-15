@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import MessageModal from './MessageModal';
 import { aiAPI } from '../services/api';
 import { useChatStore } from '../stores/chatStore';
@@ -21,16 +21,18 @@ export default function AlumniCard({ alumni, connectionStatus, connection }) {
     return () => clearTimeout(timer);
   }, [alumni.match_score]);
 
-  // Fetch match reasons on mount so AI suggestion is always visible in the card
-  useEffect(() => {
-    if (alumni.match_score === undefined) return;
+  // Fetch match reasons only when user hovers over the match badge (avoids N LLM calls per page load)
+  const fetchedReasonsRef = useRef(false);
+  const fetchReasons = () => {
+    if (alumni.match_score === undefined || fetchedReasonsRef.current) return;
+    fetchedReasonsRef.current = true;
     setLoadingReasons(true);
     aiAPI
       .getMatchExplanation(alumni.id)
       .then((response) => setMatchReasons(response.data.reasons || []))
       .catch((e) => console.error('Failed to fetch match explanation:', e))
       .finally(() => setLoadingReasons(false));
-  }, [alumni.id, alumni.match_score]);
+  };
 
   const initials = getInitials(alumni.name);
 
@@ -43,21 +45,30 @@ export default function AlumniCard({ alumni, connectionStatus, connection }) {
               <div
                 className="relative inline-block px-3 py-1.5 rounded-full text-sm font-bold cursor-help"
                 style={{ background: 'var(--coral-600)', color: 'white' }}
-                onMouseEnter={() => setShowTooltip(true)}
+                onMouseEnter={() => {
+                  setShowTooltip(true);
+                  fetchReasons();
+                }}
                 onMouseLeave={() => setShowTooltip(false)}
               >
                 {animatedScore}% Match
-                {showTooltip && matchReasons.length > 0 && (
+                {showTooltip && (
                   <div
                     className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-64 p-4 rounded-lg shadow-xl text-sm z-20"
                     style={{ background: 'var(--cream-900)', color: 'var(--cream-100)' }}
                   >
                     <p className="font-semibold mb-2">Why this match?</p>
-                    <ul className="space-y-1">
-                      {matchReasons.map((r, i) => (
-                        <li key={i}>• {r}</li>
-                      ))}
-                    </ul>
+                    {loadingReasons ? (
+                      <p className="text-sm opacity-80">Loading…</p>
+                    ) : matchReasons.length > 0 ? (
+                      <ul className="space-y-1">
+                        {matchReasons.map((r, i) => (
+                          <li key={i}>• {r}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm opacity-80">Unable to load reasons.</p>
+                    )}
                   </div>
                 )}
               </div>
@@ -122,7 +133,11 @@ export default function AlumniCard({ alumni, connectionStatus, connection }) {
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => setShowModal(true)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  setShowModal(true);
+                }}
                 className="btn-primary-warm w-full"
               >
                 Connect

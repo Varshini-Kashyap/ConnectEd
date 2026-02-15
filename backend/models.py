@@ -121,10 +121,21 @@ class TutorMatch(Base):
 
 class Message(Base):
     __tablename__ = "messages"
-    
+
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     connection_id = Column(String, ForeignKey("connections.id", ondelete="CASCADE"), nullable=False)
     sender_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     content = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     read = Column(Boolean, default=False)
+
+
+class CareerMatchCache(Base):
+    """Cache (student_id, alumni_id) -> match_score and reasons so we don't recompute on every page load."""
+    __tablename__ = "career_match_cache"
+
+    student_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    target_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    match_score = Column(Integer, nullable=False)
+    reasons = Column(JSON)  # list of strings from explain_match
+    created_at = Column(DateTime, default=datetime.utcnow)
