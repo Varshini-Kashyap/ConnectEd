@@ -217,6 +217,25 @@ def decline_connection(
     db.commit()
     return connection
 
+@app.get("/api/notifications")
+def get_notifications(user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Connection requests (pending where current user is target) and other notifications."""
+    pending = db.query(models.Connection).filter(
+        models.Connection.target_id == user_id,
+        models.Connection.status == 'pending'
+    ).order_by(models.Connection.created_at.desc()).all()
+    connection_requests = []
+    for c in pending:
+        requester = db.query(models.User).filter(models.User.id == c.requester_id).first()
+        connection_requests.append({
+            "id": c.id,
+            "type": "connection_request",
+            "requester": {"id": requester.id, "name": requester.name, "avatar_url": requester.avatar_url} if requester else None,
+            "message": c.message,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+        })
+    return {"connection_requests": connection_requests, "message_requests": []}
+
 # STUDENT STREAM ENDPOINTS
 @app.get("/api/tutors")
 def get_tutors(
@@ -229,7 +248,7 @@ def get_tutors(
     
     result = []
     for tutor in tutors:
-        if not tutor.profile_data.get('is_tutor'):
+        if not (tutor.profile_data or {}).get('is_tutor'):
             continue
             
         courses = db.query(models.StudentCourse, models.Course).join(
@@ -255,6 +274,7 @@ def get_tutors(
             "year": tutor.year,
             "gpa": float(tutor.gpa) if tutor.gpa else None,
             "bio": profile.get("areas_of_interest", ""),
+            "hobbies": profile.get("hobbies", ""),
             "avatar_url": tutor.avatar_url,
             "tutoring_sessions": 0,
             "courses": tutor_courses

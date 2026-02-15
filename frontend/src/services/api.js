@@ -39,6 +39,10 @@ export const careerAPI = {
   declineConnection: (id) => api.put(`/connections/${id}/decline`),
 };
 
+export const notificationsAPI = {
+  getNotifications: () => api.get('/notifications'),
+};
+
 export const studentAPI = {
   getTutors: (filters) => api.get('/tutors', { params: filters }),
   createHelpRequest: (data) => api.post('/help-requests', data),

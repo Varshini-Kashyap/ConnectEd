@@ -9,6 +9,7 @@ export default function Career() {
   const [selectedMajor, setSelectedMajor] = useState('All');
   const [selectedCompany, setSelectedCompany] = useState('');
   const [filteredAlumni, setFilteredAlumni] = useState([]);
+  const [viewMode, setViewMode] = useState('grid');
 
   const majors = ['All', 'Computer Science', 'Information Technology', 'Software Engineering', 'Cyber Security Engineering'];
   const companies = ['All', 'Google', 'Amazon', 'Microsoft', 'Capital One', 'Accenture', 'Deloitte'];
@@ -51,56 +52,58 @@ export default function Career() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen" style={{ background: 'var(--cream-100)' }}>
       <NavBar />
-      <div className="container mx-auto px-4 py-8">
-        {/* Header */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gmu-green mb-2">Alumni Network</h1>
-          <p className="text-gray-600">Connect with GMU graduates at top companies</p>
+          <h1
+            className="text-3xl sm:text-4xl font-bold mb-2 font-dm-sans"
+            style={{
+              background: 'var(--gradient-primary)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+            }}
+          >
+            Career Networking
+          </h1>
+          <p className="text-lg" style={{ color: 'var(--cream-700)' }}>Connect with alumni and discover career opportunities</p>
         </div>
 
-        {/* Search Bar */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Search by name, company, or major..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-4 py-3 pl-12 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-gmu-green focus:border-transparent text-lg"
-            />
-            <svg
-              className="absolute left-4 top-4 h-6 w-6 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
-            </svg>
-          </div>
+        <div className="relative mb-6">
+          <svg
+            className="absolute left-6 top-1/2 -translate-y-1/2 w-6 h-6 pointer-events-none"
+            style={{ color: 'var(--cream-700)' }}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <circle cx="11" cy="11" r="8" strokeWidth={2} />
+            <path d="m21 21-4.35-4.35" strokeWidth={2} strokeLinecap="round" />
+          </svg>
+          <input
+            type="text"
+            placeholder="Search by name, company, or major..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="search-box-input pl-[4rem]"
+          />
         </div>
 
-        {/* Filter Pills */}
         <div className="mb-6 space-y-4">
-          {/* Major Filter */}
           <div>
-            <p className="text-sm font-semibold text-gray-700 mb-2">Filter by Major:</p>
-            <div className="flex flex-wrap gap-2">
+            <p className="text-sm font-semibold mb-2 font-dm-sans" style={{ color: 'var(--cream-900)' }}>Filter by Major</p>
+            <div className="flex flex-wrap gap-3">
               {majors.map((major) => (
                 <button
                   key={major}
                   onClick={() => setSelectedMajor(major)}
-                  className={`px-4 py-2 rounded-full font-semibold transition ${
+                  className={`filter-pill-warm px-5 py-2.5 rounded-full font-dm-sans font-medium text-sm border-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-coral-500 focus-visible:ring-offset-2 ${selectedMajor === major ? 'active-pill' : ''}`}
+                  style={
                     selectedMajor === major
-                      ? 'bg-gmu-green text-white'
-                      : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
-                  }`}
+                      ? { background: 'var(--gradient-primary)', color: 'white', borderColor: 'var(--coral-600)' }
+                      : { background: 'var(--cream-50)', color: 'var(--cream-800)', borderColor: 'var(--cream-300)' }
+                  }
                 >
                   {major}
                 </button>
@@ -108,19 +111,19 @@ export default function Career() {
             </div>
           </div>
 
-          {/* Company Filter */}
           <div>
-            <p className="text-sm font-semibold text-gray-700 mb-2">Filter by Company:</p>
-            <div className="flex flex-wrap gap-2">
+            <p className="text-sm font-semibold mb-2 font-dm-sans" style={{ color: 'var(--cream-900)' }}>Filter by Company</p>
+            <div className="flex flex-wrap gap-3">
               {companies.map((company) => (
                 <button
                   key={company}
                   onClick={() => setSelectedCompany(company)}
-                  className={`px-4 py-2 rounded-full font-semibold transition ${
+                  className={`filter-pill-warm px-5 py-2.5 rounded-full font-dm-sans font-medium text-sm border-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-coral-500 focus-visible:ring-offset-2 ${selectedCompany === company ? 'active-pill' : ''}`}
+                  style={
                     selectedCompany === company
-                      ? 'bg-gmu-gold text-gmu-green'
-                      : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
-                  }`}
+                      ? { background: 'var(--gradient-primary)', color: 'white', borderColor: 'var(--coral-600)' }
+                      : { background: 'var(--cream-50)', color: 'var(--cream-800)', borderColor: 'var(--cream-300)' }
+                  }
                 >
                   {company}
                 </button>
@@ -129,36 +132,61 @@ export default function Career() {
           </div>
         </div>
 
-        {/* Results Count */}
-        <div className="mb-4">
-          <p className="text-gray-600">
-            Showing <span className="font-bold text-gmu-green">{filteredAlumni.length}</span> alumni
-            {searchTerm && ` matching "${searchTerm}"`}
+        <div className="flex justify-between items-center mb-6">
+          <p className="font-dm-sans text-lg font-semibold" style={{ color: 'var(--cream-900)' }}>
+            {filteredAlumni.length} {filteredAlumni.length === 1 ? 'alumnus' : 'alumni'} found
+            {searchTerm ? ` matching "${searchTerm}"` : ''}
           </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              title="Grid view"
+              className={`view-btn-warm ${viewMode === 'grid' ? 'active' : ''}`}
+              onClick={() => setViewMode('grid')}
+            >
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
+                <rect x="3" y="3" width="7" height="7" />
+                <rect x="14" y="3" width="7" height="7" />
+                <rect x="14" y="14" width="7" height="7" />
+                <rect x="3" y="14" width="7" height="7" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              title="List view"
+              className={`view-btn-warm ${viewMode === 'list' ? 'active' : ''}`}
+              onClick={() => setViewMode('list')}
+            >
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
+                <line x1="8" y1="6" x2="21" y2="6" />
+                <line x1="8" y1="12" x2="21" y2="12" />
+                <line x1="8" y1="18" x2="21" y2="18" />
+                <line x1="3" y1="6" x2="3.01" y2="6" />
+                <line x1="3" y1="12" x2="3.01" y2="12" />
+                <line x1="3" y1="18" x2="3.01" y2="18" />
+              </svg>
+            </button>
+          </div>
         </div>
 
-        {/* Alumni Grid */}
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20">
-            <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-gmu-green mb-4"></div>
-            <p className="text-gray-600 text-lg">Loading alumni...</p>
+            <div className="animate-spin rounded-full h-16 w-16 border-b-4 mb-4" style={{ borderColor: 'var(--coral-600)' }} />
+            <p className="text-lg" style={{ color: 'var(--cream-700)' }}>Loading alumni...</p>
           </div>
         ) : filteredAlumni.length === 0 ? (
           <div className="text-center py-20">
-            <p className="text-gray-600 text-lg">No alumni found matching your criteria</p>
+            <p className="text-lg mb-4" style={{ color: 'var(--cream-700)' }}>No alumni found matching your criteria</p>
             <button
-              onClick={() => {
-                setSearchTerm('');
-                setSelectedMajor('All');
-                setSelectedCompany('');
-              }}
-              className="mt-4 text-gmu-green hover:underline"
+              onClick={() => { setSearchTerm(''); setSelectedMajor('All'); setSelectedCompany(''); }}
+              className="font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-coral-500 focus-visible:ring-offset-2 rounded"
+              style={{ color: 'var(--coral-600)' }}
             >
               Clear filters
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className={viewMode === 'list' ? 'flex flex-col gap-4' : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'}>
             {filteredAlumni.map((alum) => (
               <AlumniCard
                 key={alum.id}

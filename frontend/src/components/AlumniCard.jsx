@@ -2,6 +2,11 @@ import { useState, useEffect } from 'react';
 import MessageModal from './MessageModal';
 import { aiAPI } from '../services/api';
 
+function getInitials(name) {
+  if (!name || typeof name !== 'string') return '?';
+  return name.trim().split(/\s+/).map(s => s[0]).slice(0, 2).join('').toUpperCase();
+}
+
 export default function AlumniCard({ alumni, connectionStatus }) {
   const [showModal, setShowModal] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
@@ -10,137 +15,111 @@ export default function AlumniCard({ alumni, connectionStatus }) {
   const [animatedScore, setAnimatedScore] = useState(0);
 
   useEffect(() => {
-    // Animate score on mount
-    const timer = setTimeout(() => {
-      setAnimatedScore(alumni.match_score || 0);
-    }, 100);
+    const timer = setTimeout(() => setAnimatedScore(alumni.match_score || 0), 100);
     return () => clearTimeout(timer);
   }, [alumni.match_score]);
 
-  const fetchMatchExplanation = async () => {
-    if (matchReasons.length > 0) return;
+  // Fetch match reasons on mount so AI suggestion is always visible in the card
+  useEffect(() => {
+    if (alumni.match_score === undefined) return;
     setLoadingReasons(true);
-    try {
-      const response = await aiAPI.getMatchExplanation(alumni.id);
-      setMatchReasons(response.data.reasons);
-    } catch (error) {
-      console.error('Failed to fetch match explanation:', error);
-    } finally {
-      setLoadingReasons(false);
-    }
-  };
+    aiAPI
+      .getMatchExplanation(alumni.id)
+      .then((response) => setMatchReasons(response.data.reasons || []))
+      .catch((e) => console.error('Failed to fetch match explanation:', e))
+      .finally(() => setLoadingReasons(false));
+  }, [alumni.id, alumni.match_score]);
 
-  const getScoreColor = (score) => {
-    if (score >= 90) return 'from-green-500 to-green-600';
-    if (score >= 70) return 'from-blue-500 to-blue-600';
-    if (score >= 50) return 'from-yellow-500 to-yellow-600';
-    return 'from-gray-400 to-gray-500';
-  };
-
-  const getScoreBadgeColor = (score) => {
-    if (score >= 90) return 'bg-green-500';
-    if (score >= 70) return 'bg-blue-500';
-    if (score >= 50) return 'bg-yellow-500';
-    return 'bg-gray-400';
-  };
+  const initials = getInitials(alumni.name);
 
   return (
     <>
-      <div className="bg-white rounded-lg shadow-lg p-6 hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1">
-        {/* Match Score Badge */}
-        {alumni.match_score !== undefined && (
-          <div
-            className="relative mb-4"
-            onMouseEnter={() => {
-              setShowTooltip(true);
-              fetchMatchExplanation();
-            }}
-            onMouseLeave={() => setShowTooltip(false)}
-          >
-            <div className={`${getScoreBadgeColor(alumni.match_score)} text-white px-4 py-2 rounded-full text-center font-bold text-lg inline-block cursor-help`}>
-              {animatedScore}% Match
-            </div>
-
-            {/* Tooltip */}
-            {showTooltip && (
-              <div className="absolute z-10 bg-gray-900 text-white p-4 rounded-lg shadow-xl mt-2 w-64 text-sm">
-                <p className="font-semibold mb-2">Why this match?</p>
-                {loadingReasons ? (
-                  <p className="text-gray-300">Loading...</p>
-                ) : (
-                  <ul className="space-y-1">
-                    {matchReasons.map((reason, idx) => (
-                      <li key={idx} className="text-gray-200">• {reason}</li>
-                    ))}
-                  </ul>
+      <div className="profile-card-warm relative">
+        <div className="relative h-20" style={{ background: 'var(--gradient-primary)' }}>
+          {alumni.match_score !== undefined && (
+            <div className="absolute top-4 right-4">
+              <div
+                className="relative inline-block px-3 py-1.5 rounded-full text-sm font-bold cursor-help"
+                style={{ background: 'var(--coral-600)', color: 'white' }}
+                onMouseEnter={() => setShowTooltip(true)}
+                onMouseLeave={() => setShowTooltip(false)}
+              >
+                {animatedScore}% Match
+                {showTooltip && matchReasons.length > 0 && (
+                  <div
+                    className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-64 p-4 rounded-lg shadow-xl text-sm z-20"
+                    style={{ background: 'var(--cream-900)', color: 'var(--cream-100)' }}
+                  >
+                    <p className="font-semibold mb-2">Why this match?</p>
+                    <ul className="space-y-1">
+                      {matchReasons.map((r, i) => (
+                        <li key={i}>• {r}</li>
+                      ))}
+                    </ul>
+                  </div>
                 )}
-                <div className="absolute -top-2 left-8 w-4 h-4 bg-gray-900 transform rotate-45"></div>
               </div>
+            </div>
+          )}
+          <div
+            className="absolute left-6 rounded-full flex items-center justify-center font-dm-sans text-2xl font-bold text-white border-4 overflow-hidden"
+            style={{
+              bottom: '-40px',
+              width: 80,
+              height: 80,
+              background: 'var(--gradient-primary)',
+              borderColor: 'var(--cream-50)',
+              boxShadow: 'var(--shadow-md)',
+            }}
+          >
+            {alumni.avatar_url ? (
+              <img src={alumni.avatar_url} alt={alumni.name} className="w-full h-full object-cover" />
+            ) : (
+              initials
             )}
           </div>
-        )}
-
-        {/* Profile Section */}
-        <div className="flex items-start mb-4">
-          <img
-            src={alumni.avatar_url || `https://ui-avatars.com/api/?name=${alumni.name}&background=006633&color=fff`}
-            alt={alumni.name}
-            className="w-16 h-16 rounded-full mr-4 border-2 border-gmu-green"
-          />
-          <div className="flex-1">
-            <h3 className="text-xl font-bold text-gray-800">{alumni.name}</h3>
-            <p className="text-gmu-green font-semibold">{alumni.job_title}</p>
-            <p className="text-gray-600 text-sm">{alumni.company}</p>
-          </div>
         </div>
 
-        {/* Details */}
-        <div className="space-y-2 mb-4">
-          <p className="text-sm">
-            <strong className="text-gray-700">Major:</strong> {alumni.major}
-          </p>
-          <p className="text-sm">
-            <strong className="text-gray-700">Graduated:</strong> {alumni.graduation_year}
-          </p>
-          {alumni.location && (
-            <p className="text-sm">
-              <strong className="text-gray-700">Location:</strong> {alumni.location}
-            </p>
+        <div className="pt-12 px-6 pb-6">
+          <h3 className="font-dm-sans text-xl font-semibold mb-1" style={{ color: 'var(--cream-900)' }}>
+            {alumni.name}
+          </h3>
+          <p className="font-medium mb-1" style={{ color: 'var(--coral-600)' }}>{alumni.job_title}</p>
+          <p className="text-sm mb-3" style={{ color: 'var(--cream-700)' }}>{alumni.company}</p>
+
+          {/* AI suggestion (match reason) – always visible when we have a match score */}
+          {alumni.match_score !== undefined && (
+            <div className="match-reason-warm mb-4 flex gap-2 items-start">
+              <svg className="w-4 h-4 shrink-0 mt-0.5" style={{ stroke: 'var(--coral-600)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>{loadingReasons ? 'Loading match reasons...' : matchReasons.length > 0 ? matchReasons[0] : 'Shared interests and background'}</span>
+            </div>
+          )}
+
+          {connectionStatus === 'pending' ? (
+            <div className="w-full py-2.5 rounded-lg text-center font-semibold text-sm" style={{ background: 'rgba(255, 138, 111, 0.2)', color: 'var(--coral-600)' }}>
+              Request Pending
+            </div>
+          ) : connectionStatus === 'accepted' ? (
+            <div className="w-full py-2.5 rounded-lg text-center font-semibold text-sm" style={{ background: 'rgba(255, 138, 111, 0.25)', color: 'var(--coral-600)' }}>
+              ✓ Connected
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setShowModal(true)}
+                className="btn-primary-warm w-full"
+              >
+                Connect
+              </button>
+              <button type="button" className="btn-secondary-warm w-full">
+                Message
+              </button>
+            </div>
           )}
         </div>
-
-        {/* Bio */}
-        <p className="text-gray-700 text-sm mb-4 line-clamp-3">{alumni.bio}</p>
-
-        {/* Match Score Bar */}
-        {alumni.match_score !== undefined && (
-          <div className="mb-4">
-            <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-              <div
-                className={`h-full bg-gradient-to-r ${getScoreColor(alumni.match_score)} transition-all duration-1000 ease-out`}
-                style={{ width: `${animatedScore}%` }}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Connection Status or Button */}
-        {connectionStatus === 'pending' ? (
-          <div className="w-full bg-yellow-100 text-yellow-800 py-2 rounded-lg text-center font-semibold">
-            Request Pending
-          </div>
-        ) : connectionStatus === 'accepted' ? (
-          <div className="w-full bg-green-100 text-green-800 py-2 rounded-lg text-center font-semibold">
-            ✓ Connected
-          </div>
-        ) : (
-          <button
-            onClick={() => setShowModal(true)}
-            className="w-full bg-gmu-green text-white py-2 rounded-lg hover:bg-green-700 transition font-semibold"
-          >
-            Connect
-          </button>
-        )}
       </div>
 
       {showModal && (

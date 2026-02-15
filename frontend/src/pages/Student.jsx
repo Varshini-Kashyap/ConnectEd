@@ -6,9 +6,11 @@ import HelpRequestForm from '../components/HelpRequestForm';
 
 export default function Student() {
   const { tutors, requests, courses, fetchTutors, fetchRequests, fetchCourses, loading } = useStudentStore();
-  const [activeTab, setActiveTab] = useState('find'); // find, post, my-requests
+  const [activeTab, setActiveTab] = useState('find');
   const [selectedCourse, setSelectedCourse] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
   const [filteredTutors, setFilteredTutors] = useState([]);
+  const [viewMode, setViewMode] = useState('grid');
 
   useEffect(() => {
     fetchTutors();
@@ -17,110 +19,169 @@ export default function Student() {
   }, []);
 
   useEffect(() => {
-    if (selectedCourse === 'all') {
-      setFilteredTutors(tutors);
-    } else {
-      setFilteredTutors(
-        tutors.filter(tutor =>
-          tutor.courses?.some(course => course.course_id === parseInt(selectedCourse))
-        )
+    let list = tutors;
+    if (selectedCourse !== 'all') {
+      list = list.filter(tutor =>
+        tutor.courses?.some(c => c.course_id === parseInt(selectedCourse, 10))
       );
     }
-  }, [tutors, selectedCourse]);
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase().trim();
+      list = list.filter(tutor =>
+        tutor.name?.toLowerCase().includes(q) ||
+        tutor.courses?.some(c => courses.find(co => co.id === c.course_id)?.code?.toLowerCase().includes(q))
+      );
+    }
+    setFilteredTutors(list);
+  }, [tutors, selectedCourse, searchTerm, courses]);
+
+  const tabs = [
+    { id: 'find', label: 'Find Tutors' },
+    { id: 'post', label: 'Post Help Request' },
+    { id: 'my-requests', label: 'My Requests', badge: requests.length },
+  ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen" style={{ background: 'var(--cream-100)' }}>
       <NavBar />
-      <div className="container mx-auto px-4 py-8">
-        {/* Header */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gmu-green mb-2">Student Help Center</h1>
-          <p className="text-gray-600">Find tutors and get academic support</p>
+          <h1
+            className="text-3xl sm:text-4xl font-bold mb-2 font-dm-sans"
+            style={{
+              background: 'var(--gradient-primary)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+            }}
+          >
+            Student Networking
+          </h1>
+          <p className="text-lg" style={{ color: 'var(--cream-700)' }}>Find tutors and get academic support</p>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="bg-white rounded-lg shadow-md mb-6">
-          <div className="flex border-b">
+        <div className="flex gap-3 mb-8 flex-wrap">
+          {tabs.map(({ id, label, badge }) => (
             <button
-              onClick={() => setActiveTab('find')}
-              className={`flex-1 py-4 px-6 font-semibold transition ${
-                activeTab === 'find'
-                  ? 'text-gmu-green border-b-4 border-gmu-green'
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
+              key={id}
+              type="button"
+              onClick={() => setActiveTab(id)}
+              className={`tab-btn-warm flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-coral-500 focus-visible:ring-offset-2 ${activeTab === id ? 'active' : ''}`}
             >
-              📚 Find Tutors
-            </button>
-            <button
-              onClick={() => setActiveTab('post')}
-              className={`flex-1 py-4 px-6 font-semibold transition ${
-                activeTab === 'post'
-                  ? 'text-gmu-green border-b-4 border-gmu-green'
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
-            >
-              ✋ Post Help Request
-            </button>
-            <button
-              onClick={() => setActiveTab('my-requests')}
-              className={`flex-1 py-4 px-6 font-semibold transition ${
-                activeTab === 'my-requests'
-                  ? 'text-gmu-green border-b-4 border-gmu-green'
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
-            >
-              📋 My Requests
-              {requests.length > 0 && (
-                <span className="ml-2 bg-gmu-gold text-gmu-green px-2 py-1 rounded-full text-xs">
-                  {requests.length}
+              {label}
+              {badge > 0 && (
+                <span
+                  className="px-2 py-0.5 rounded-full text-xs font-semibold"
+                  style={activeTab === id ? { background: 'rgba(255,255,255,0.3)', color: 'white' } : { background: 'var(--coral-600)', color: 'white' }}
+                >
+                  {badge}
                 </span>
               )}
             </button>
-          </div>
+          ))}
         </div>
 
-        {/* Find Tutors Tab */}
         {activeTab === 'find' && (
           <div>
-            {/* Course Filter */}
-            <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-              <label className="block text-sm font-semibold text-gray-700 mb-3">
-                Filter by Course:
-              </label>
-              <select
-                value={selectedCourse}
-                onChange={(e) => setSelectedCourse(e.target.value)}
-                className="w-full md:w-auto px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-gmu-green focus:border-transparent"
+            <div className="relative mb-6">
+              <svg
+                className="absolute left-6 top-1/2 -translate-y-1/2 w-6 h-6 pointer-events-none"
+                style={{ color: 'var(--cream-700)' }}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
               >
-                <option value="all">All Courses</option>
+                <circle cx="11" cy="11" r="8" strokeWidth={2} />
+                <path d="m21 21-4.35-4.35" strokeWidth={2} strokeLinecap="round" />
+              </svg>
+              <input
+                type="text"
+                placeholder="e.g. Find a tutor for CS 310, or by name..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="search-box-input pl-[4rem]"
+              />
+            </div>
+
+            <div className="mb-6">
+              <p className="text-sm font-semibold mb-2 font-dm-sans" style={{ color: 'var(--cream-900)' }}>Filter by Course</p>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={() => setSelectedCourse('all')}
+                  className={`filter-pill-warm px-5 py-2.5 rounded-full font-dm-sans font-medium text-sm border-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-coral-500 focus-visible:ring-offset-2 ${selectedCourse === 'all' ? 'active-pill' : ''}`}
+                  style={
+                    selectedCourse === 'all'
+                      ? { background: 'var(--gradient-primary)', color: 'white', borderColor: 'var(--coral-600)' }
+                      : { background: 'var(--cream-50)', color: 'var(--cream-800)', borderColor: 'var(--cream-300)' }
+                  }
+                >
+                  All Courses
+                </button>
                 {courses.map((course) => (
-                  <option key={course.id} value={course.id}>
-                    {course.code} - {course.name}
-                  </option>
+                  <button
+                    key={course.id}
+                    onClick={() => setSelectedCourse(String(course.id))}
+                    className={`filter-pill-warm px-5 py-2.5 rounded-full font-dm-sans font-medium text-sm border-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-coral-500 focus-visible:ring-offset-2 ${selectedCourse === String(course.id) ? 'active-pill' : ''}`}
+                    style={
+                      selectedCourse === String(course.id)
+                        ? { background: 'var(--gradient-primary)', color: 'white', borderColor: 'var(--coral-600)' }
+                        : { background: 'var(--cream-50)', color: 'var(--cream-800)', borderColor: 'var(--cream-300)' }
+                    }
+                  >
+                    {course.code}
+                  </button>
                 ))}
-              </select>
+              </div>
             </div>
 
-            {/* Results Count */}
-            <div className="mb-4">
-              <p className="text-gray-600">
-                Showing <span className="font-bold text-gmu-green">{filteredTutors.length}</span> tutors
+            <div className="flex justify-between items-center mb-6">
+              <p className="font-dm-sans text-lg font-semibold" style={{ color: 'var(--cream-900)' }}>
+                {filteredTutors.length} {filteredTutors.length === 1 ? 'tutor' : 'tutors'} found
               </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  title="Grid view"
+                  className={`view-btn-warm ${viewMode === 'grid' ? 'active' : ''}`}
+                  onClick={() => setViewMode('grid')}
+                >
+                  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
+                    <rect x="3" y="3" width="7" height="7" />
+                    <rect x="14" y="3" width="7" height="7" />
+                    <rect x="14" y="14" width="7" height="7" />
+                    <rect x="3" y="14" width="7" height="7" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  title="List view"
+                  className={`view-btn-warm ${viewMode === 'list' ? 'active' : ''}`}
+                  onClick={() => setViewMode('list')}
+                >
+                  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
+                    <line x1="8" y1="6" x2="21" y2="6" />
+                    <line x1="8" y1="12" x2="21" y2="12" />
+                    <line x1="8" y1="18" x2="21" y2="18" />
+                    <line x1="3" y1="6" x2="3.01" y2="6" />
+                    <line x1="3" y1="12" x2="3.01" y2="12" />
+                    <line x1="3" y1="18" x2="3.01" y2="18" />
+                  </svg>
+                </button>
+              </div>
             </div>
 
-            {/* Tutors Grid */}
             {loading ? (
               <div className="flex flex-col items-center justify-center py-20">
-                <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-gmu-green mb-4"></div>
-                <p className="text-gray-600 text-lg">Loading tutors...</p>
+                <div className="animate-spin rounded-full h-16 w-16 border-b-4 mb-4" style={{ borderColor: 'var(--coral-600)' }} />
+                <p className="text-lg" style={{ color: 'var(--cream-700)' }}>Loading tutors...</p>
               </div>
             ) : filteredTutors.length === 0 ? (
-              <div className="text-center py-20 bg-white rounded-lg shadow">
-                <p className="text-gray-600 text-lg mb-2">No tutors found</p>
-                <p className="text-gray-500">Try selecting a different course</p>
+              <div className="text-center py-20 rounded-xl border" style={{ background: 'var(--cream-50)', borderColor: 'var(--cream-300)' }}>
+                <p className="text-lg mb-2" style={{ color: 'var(--cream-700)' }}>No tutors found</p>
+                <p className="text-sm" style={{ color: 'var(--cream-700)' }}>Try selecting a different course</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className={viewMode === 'list' ? 'flex flex-col gap-4' : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'}>
                 {filteredTutors.map((tutor) => (
                   <TutorCard key={tutor.id} tutor={tutor} />
                 ))}
@@ -129,27 +190,23 @@ export default function Student() {
           </div>
         )}
 
-        {/* Post Help Request Tab */}
         {activeTab === 'post' && (
           <div className="max-w-3xl mx-auto">
             <HelpRequestForm
-              onSuccess={() => {
-                fetchRequests();
-                setActiveTab('my-requests');
-              }}
+              onSuccess={() => { fetchRequests(); setActiveTab('my-requests'); }}
             />
           </div>
         )}
 
-        {/* My Requests Tab */}
         {activeTab === 'my-requests' && (
           <div>
             {requests.length === 0 ? (
-              <div className="text-center py-20 bg-white rounded-lg shadow">
-                <p className="text-gray-600 text-lg mb-4">No help requests yet</p>
+              <div className="text-center py-20 rounded-xl border" style={{ background: 'var(--cream-50)', borderColor: 'var(--cream-300)' }}>
+                <p className="text-lg mb-4" style={{ color: 'var(--cream-700)' }}>No help requests yet</p>
                 <button
                   onClick={() => setActiveTab('post')}
-                  className="bg-gmu-green text-white px-6 py-3 rounded-lg hover:bg-green-700 font-semibold"
+                  className="px-6 py-3 rounded-lg font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-coral-500 focus-visible:ring-offset-2"
+                  style={{ background: 'var(--gradient-primary)', color: 'white' }}
                 >
                   Post Your First Request
                 </button>
@@ -157,36 +214,38 @@ export default function Student() {
             ) : (
               <div className="space-y-4">
                 {requests.map((request) => (
-                  <div key={request.id} className="bg-white rounded-lg shadow-lg p-6">
+                  <div
+                    key={request.id}
+                    className="rounded-xl border p-6"
+                    style={{ background: 'var(--cream-50)', borderColor: 'var(--cream-300)', boxShadow: 'var(--shadow-warm)' }}
+                  >
                     <div className="flex justify-between items-start mb-4">
                       <div className="flex-1">
-                        <h3 className="text-xl font-bold text-gray-800 mb-2">{request.title}</h3>
-                        <p className="text-sm text-gray-600 mb-2">
+                        <h3 className="text-xl font-bold mb-2" style={{ color: 'var(--cream-900)' }}>{request.title}</h3>
+                        <p className="text-sm mb-2" style={{ color: 'var(--cream-700)' }}>
                           Course ID: {request.course_id} • {new Date(request.created_at).toLocaleDateString()}
                         </p>
                       </div>
                       <div className="flex gap-2">
                         {request.urgent && (
-                          <span className="bg-red-500 text-white px-3 py-1 rounded-full text-xs font-semibold">
-                            🚨 Urgent
-                          </span>
+                          <span className="bg-red-500 text-white px-3 py-1 rounded-full text-xs font-semibold">🚨 Urgent</span>
                         )}
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          request.status === 'open' ? 'bg-green-100 text-green-800' :
-                          request.status === 'matched' ? 'bg-blue-100 text-blue-800' :
-                          'bg-gray-100 text-gray-800'
-                        }`}>
+                        <span
+                          className="px-3 py-1 rounded-full text-xs font-semibold"
+                          style={
+                            request.status === 'open' ? { background: 'var(--coral-500)', color: 'white' } :
+                            request.status === 'matched' ? { background: 'var(--coral-400)', color: 'var(--cream-900)' } :
+                            { background: 'var(--cream-200)', color: 'var(--cream-800)' }
+                          }
+                        >
                           {request.status}
                         </span>
                       </div>
                     </div>
-                    <p className="text-gray-700 mb-4">{request.description}</p>
+                    <p className="mb-4" style={{ color: 'var(--cream-800)' }}>{request.description}</p>
                     <button
-                      onClick={() => {
-                        // Could implement view matches functionality here
-                        alert('View matches feature coming soon!');
-                      }}
-                      className="bg-gmu-gold text-gmu-green px-4 py-2 rounded-lg hover:bg-yellow-400 font-semibold"
+                      onClick={() => alert('View matches feature coming soon!')}
+                      className="btn-primary-warm"
                     >
                       View Matched Tutors
                     </button>

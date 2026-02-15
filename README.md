@@ -57,7 +57,7 @@ Connected/
 ## 🚀 Getting Started
 
 ### Prerequisites
-- Python 3.8+
+- **Python 3.11 or 3.12** (backend; 3.13 is not supported by pinned dependencies)
 - Node.js 16+
 - Groq API key (get free at https://console.groq.com/)
 
@@ -68,10 +68,11 @@ Connected/
 cd backend
 ```
 
-2. Create virtual environment:
+2. Create virtual environment (use Python 3.11 or 3.12):
 ```bash
-python -m venv venv
-venv\Scripts\activate  # Windows
+python3.12 -m venv venv   # or python3.11 -m venv venv
+source venv/bin/activate  # macOS/Linux
+venv\Scripts\activate     # Windows
 ```
 
 3. Install dependencies:
