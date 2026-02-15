@@ -43,6 +43,19 @@ def seed_data():
         ("SYST 460", "Systems Integration", "SYST"),
         ("CYSE 200", "Introduction to Cybersecurity", "CYSE"),
         ("CYSE 330", "Security Fundamentals", "CYSE"),
+        ("BIOL 213", "Cell Structure and Function", "BIOL"),
+        ("BIOL 311", "General Genetics", "BIOL"),
+        ("PSYC 100", "Introductory Psychology", "PSYC"),
+        ("PSYC 301", "Research Methods in Psychology", "PSYC"),
+        ("BUS 200", "Introduction to Business", "BUS"),
+        ("BUS 310", "Principles of Marketing", "BUS"),
+        ("ECON 103", "Microeconomics", "ECON"),
+        ("ECON 306", "Intermediate Microeconomics", "ECON"),
+        ("ENGL 101", "Composition", "ENGL"),
+        ("COMM 100", "Public Speaking", "COMM"),
+        ("ME 212", "Mechanics of Materials", "ME"),
+        ("NURS 244", "Foundations of Nursing Practice", "NURS"),
+        ("GOVT 103", "Introduction to American Government", "GOVT"),
     ]
     
     courses = []
@@ -305,6 +318,174 @@ def seed_data():
                 "preferred_interaction": "Any",
                 "max_connections_per_month": 20
             }
+        },
+        {
+            "name": "Dr. Michelle Foster",
+            "email": "m.foster@nih.gov",
+            "major": "Biology",
+            "graduation_year": 2015,
+            "company": "NIH",
+            "job_title": "Research Scientist",
+            "profile_data": {
+                "industry": "Healthcare / Research",
+                "location": "Bethesda, MD",
+                "expertise_areas": "Molecular biology, cell signaling, grant writing, lab management",
+                "career_journey": "PhD post-doc, now staff scientist at NIH. Published 20+ papers in cell biology",
+                "hobbies": "Hiking, science outreach, running",
+                "help_offered": ["Career guidance and industry insights", "Graduate school advice", "Resume and cover letter reviews"],
+                "specific_topics": "Research careers, PhD applications, lab techniques, grant writing",
+                "accepting_requests": True,
+                "preferred_response_time": "2-3 days",
+                "preferred_interaction": "Virtual calls",
+                "max_connections_per_month": 8
+            }
+        },
+        {
+            "name": "Kevin Nguyen",
+            "email": "kevin.nguyen@capitalone.com",
+            "major": "Psychology",
+            "graduation_year": 2018,
+            "company": "Capital One",
+            "job_title": "UX Researcher",
+            "profile_data": {
+                "industry": "Technology / Finance",
+                "location": "McLean, VA",
+                "expertise_areas": "User research, behavioral science, A/B testing, qualitative methods",
+                "career_journey": "Started in academic research, transitioned to industry UX. Now lead researcher for digital products",
+                "hobbies": "Podcasts, board games, cooking",
+                "help_offered": ["Career guidance and industry insights", "Resume and cover letter reviews", "Networking strategies and tips"],
+                "specific_topics": "UX research careers, psychology in industry, transition from academia",
+                "accepting_requests": True,
+                "preferred_response_time": "Within 24 hours",
+                "preferred_interaction": "Coffee chats",
+                "max_connections_per_month": 10
+            }
+        },
+        {
+            "name": "Rachel Green",
+            "email": "rachel.green@jpmorgan.com",
+            "major": "Business",
+            "graduation_year": 2017,
+            "company": "JPMorgan Chase",
+            "job_title": "Vice President, Marketing",
+            "profile_data": {
+                "industry": "Finance",
+                "location": "New York, NY",
+                "expertise_areas": "Brand strategy, digital marketing, campaign management, analytics",
+                "career_journey": "Marketing analyst to VP in 6 years. Led campaigns for major product launches",
+                "hobbies": "Travel, yoga, wine tasting",
+                "help_offered": ["Career guidance and industry insights", "Resume and cover letter reviews", "Behavioral interview preparation"],
+                "specific_topics": "Marketing in finance, leadership growth, work-life balance",
+                "accepting_requests": True,
+                "preferred_response_time": "2-3 days",
+                "preferred_interaction": "Virtual calls",
+                "max_connections_per_month": 6
+            }
+        },
+        {
+            "name": "Daniel Okonkwo",
+            "email": "d.okonkwo@federalreserve.gov",
+            "major": "Economics",
+            "graduation_year": 2016,
+            "company": "Federal Reserve",
+            "job_title": "Economist",
+            "profile_data": {
+                "industry": "Government / Policy",
+                "location": "Washington, DC",
+                "expertise_areas": "Monetary policy, econometrics, data analysis, research",
+                "career_journey": "Fed research assistant to economist. Focus on labor markets and inflation",
+                "hobbies": "Chess, reading, soccer",
+                "help_offered": ["Career guidance and industry insights", "Graduate school advice", "Technical interview preparation"],
+                "specific_topics": "Fed careers, econ PhD vs industry, policy research",
+                "accepting_requests": True,
+                "preferred_response_time": "Within 24 hours",
+                "preferred_interaction": "Email advice",
+                "max_connections_per_month": 5
+            }
+        },
+        {
+            "name": "Lauren Hayes",
+            "email": "lauren.hayes@nytimes.com",
+            "major": "English",
+            "graduation_year": 2019,
+            "company": "The New York Times",
+            "job_title": "Senior Editor",
+            "profile_data": {
+                "industry": "Media / Publishing",
+                "location": "New York, NY",
+                "expertise_areas": "Editing, narrative writing, digital content, journalism",
+                "career_journey": "Freelance writer to staff editor. Now lead editor for culture section",
+                "hobbies": "Creative writing, theater, running",
+                "help_offered": ["Career guidance and industry insights", "Resume and cover letter reviews", "Portfolio feedback"],
+                "specific_topics": "Publishing careers, freelance to staff, writing and editing",
+                "accepting_requests": True,
+                "preferred_response_time": "2-3 days",
+                "preferred_interaction": "Email advice",
+                "max_connections_per_month": 5
+            }
+        },
+        {
+            "name": "Tom Bradley",
+            "email": "tom.bradley@boeing.com",
+            "major": "Mechanical Engineering",
+            "graduation_year": 2014,
+            "company": "Boeing",
+            "job_title": "Senior Design Engineer",
+            "profile_data": {
+                "industry": "Aerospace",
+                "location": "Arlington, VA",
+                "expertise_areas": "Structural design, CAD, FEA, manufacturing, project leadership",
+                "career_journey": "Design engineer on commercial aircraft. Now lead engineer for new programs",
+                "hobbies": "Flying, woodworking, hiking",
+                "help_offered": ["Career guidance and industry insights", "Technical interview preparation", "Resume and cover letter reviews"],
+                "specific_topics": "Aerospace engineering, PE license, defense vs commercial",
+                "accepting_requests": True,
+                "preferred_response_time": "Within 24 hours",
+                "preferred_interaction": "Any",
+                "max_connections_per_month": 8
+            }
+        },
+        {
+            "name": "Nurse Jennifer Walsh",
+            "email": "j.walsh@inova.org",
+            "major": "Nursing",
+            "graduation_year": 2018,
+            "company": "Inova Health System",
+            "job_title": "Clinical Nurse Specialist",
+            "profile_data": {
+                "industry": "Healthcare",
+                "location": "Falls Church, VA",
+                "expertise_areas": "Critical care, patient safety, nursing education, leadership",
+                "career_journey": "Bedside nurse to clinical specialist. Now support nursing education and quality initiatives",
+                "hobbies": "Running, reading, volunteering",
+                "help_offered": ["Career guidance and industry insights", "Resume and cover letter reviews", "NCLEX and career advice"],
+                "specific_topics": "Nursing careers, MSN vs DNP, hospital vs outpatient",
+                "accepting_requests": True,
+                "preferred_response_time": "2-3 days",
+                "preferred_interaction": "Virtual calls",
+                "max_connections_per_month": 6
+            }
+        },
+        {
+            "name": "Sandra Morales",
+            "email": "s.morales@cbo.gov",
+            "major": "Government",
+            "graduation_year": 2017,
+            "company": "Congressional Budget Office",
+            "job_title": "Policy Analyst",
+            "profile_data": {
+                "industry": "Government / Policy",
+                "location": "Washington, DC",
+                "expertise_areas": "Budget analysis, policy research, legislative process, writing",
+                "career_journey": "Hill intern to CBO analyst. Now lead analyst on healthcare and entitlement programs",
+                "hobbies": "Politics podcasts, hiking, cooking",
+                "help_offered": ["Career guidance and industry insights", "Resume and cover letter reviews", "Networking strategies and tips"],
+                "specific_topics": "Government careers, Hill vs agency, policy analysis",
+                "accepting_requests": True,
+                "preferred_response_time": "Within 24 hours",
+                "preferred_interaction": "Coffee chats",
+                "max_connections_per_month": 8
+            }
         }
     ]
     
@@ -479,6 +660,158 @@ def seed_data():
                 "is_tutor": False
             },
             "courses": [(1, "B", False), (3, "B-", False), (14, "B+", False)]  # CS 112, CS 262, MATH 203
+        },
+        {
+            "name": "Zara Ahmed",
+            "email": "zahmed@gmu.edu",
+            "major": "Biology",
+            "year": "Junior",
+            "gpa": 3.6,
+            "profile_data": {
+                "career_goals": "Research scientist or medical school",
+                "target_companies": ["NIH", "Pharma", "Research labs"],
+                "areas_of_interest": "Molecular biology, genetics, healthcare",
+                "skills": ["Lab techniques", "PCR", "Data analysis", "Writing"],
+                "hobbies": "Running, volunteering at hospital, reading",
+                "looking_for": ["Career mentorship from alumni", "Graduate school advice"],
+                "resume_url": None,
+                "courses_taken": ["BIOL 213", "BIOL 311", "MATH 113"],
+                "is_tutor": False
+            },
+            "courses": [(20, "A-", False), (21, "B+", False), (12, "B+", False)]  # BIOL 213, BIOL 311, MATH 113
+        },
+        {
+            "name": "Jordan Lee",
+            "email": "jlee@gmu.edu",
+            "major": "Psychology",
+            "year": "Senior",
+            "gpa": 3.7,
+            "profile_data": {
+                "career_goals": "UX researcher or clinical psychology PhD",
+                "target_companies": ["Tech companies", "Consulting", "Healthcare"],
+                "areas_of_interest": "Behavioral research, human factors, mental health",
+                "skills": ["SPSS", "Research design", "Writing", "Statistics"],
+                "hobbies": "Podcasts, hiking, painting",
+                "looking_for": ["Career mentorship from alumni", "Resume and interview help"],
+                "resume_url": None,
+                "courses_taken": ["PSYC 100", "PSYC 301", "STAT 344"],
+                "is_tutor": True
+            },
+            "courses": [(22, "A", True), (23, "A-", False), (15, "A", False)]  # PSYC 100, PSYC 301, STAT 344
+        },
+        {
+            "name": "Maya Thompson",
+            "email": "mthompson@gmu.edu",
+            "major": "Business",
+            "year": "Sophomore",
+            "gpa": 3.5,
+            "profile_data": {
+                "career_goals": "Marketing or consulting",
+                "target_companies": ["Big 4", "Fortune 500", "Startups"],
+                "areas_of_interest": "Marketing, strategy, analytics",
+                "skills": ["Excel", "Presentation", "Market research"],
+                "hobbies": "Social media, travel, coffee",
+                "looking_for": ["Career mentorship from alumni", "Internship advice"],
+                "resume_url": None,
+                "courses_taken": ["BUS 200", "BUS 310", "ECON 103"],
+                "is_tutor": False
+            },
+            "courses": [(24, "B+", False), (25, "A-", False), (26, "A", False)]  # BUS 200, BUS 310, ECON 103
+        },
+        {
+            "name": "Omar Hassan",
+            "email": "ohassan@gmu.edu",
+            "major": "Economics",
+            "year": "Junior",
+            "gpa": 3.8,
+            "profile_data": {
+                "career_goals": "Economist at Fed or policy think tank",
+                "target_companies": ["Federal Reserve", "CBO", "Consulting"],
+                "areas_of_interest": "Macro policy, econometrics, data",
+                "skills": ["Stata", "R", "Python", "Writing"],
+                "hobbies": "Chess, soccer, reading",
+                "looking_for": ["Career mentorship from alumni", "Graduate school advice"],
+                "resume_url": None,
+                "courses_taken": ["ECON 103", "ECON 306", "MATH 114", "STAT 344"],
+                "is_tutor": True
+            },
+            "courses": [(26, "A", True), (27, "A-", False), (13, "B+", False), (15, "A", False)]  # ECON 103, ECON 306, MATH 114, STAT 344
+        },
+        {
+            "name": "Emma Foster",
+            "email": "efoster@gmu.edu",
+            "major": "English",
+            "year": "Senior",
+            "gpa": 3.6,
+            "profile_data": {
+                "career_goals": "Editor or content strategist in publishing or tech",
+                "target_companies": ["Publishing houses", "NYT", "Tech content teams"],
+                "areas_of_interest": "Editing, narrative, digital media",
+                "skills": ["Writing", "Editing", "SEO", "Social media"],
+                "hobbies": "Creative writing, book clubs, theater",
+                "looking_for": ["Career mentorship from alumni", "Portfolio feedback"],
+                "resume_url": None,
+                "courses_taken": ["ENGL 101", "COMM 100"],
+                "is_tutor": False
+            },
+            "courses": [(28, "A", False), (29, "A-", False)]  # ENGL 101, COMM 100
+        },
+        {
+            "name": "Derek Park",
+            "email": "dpark@gmu.edu",
+            "major": "Mechanical Engineering",
+            "year": "Junior",
+            "gpa": 3.4,
+            "profile_data": {
+                "career_goals": "Design engineer in aerospace or automotive",
+                "target_companies": ["Boeing", "Lockheed", "GM", "Tesla"],
+                "areas_of_interest": "CAD, FEA, manufacturing, sustainability",
+                "skills": ["SolidWorks", "MATLAB", "Python", "Technical writing"],
+                "hobbies": "3D printing, cars, hiking",
+                "looking_for": ["Career mentorship from alumni", "Technical interview preparation"],
+                "resume_url": None,
+                "courses_taken": ["ME 212", "MATH 114", "MATH 203"],
+                "is_tutor": False
+            },
+            "courses": [(30, "B+", False), (13, "B+", False), (14, "A-", False)]  # ME 212, MATH 114, MATH 203
+        },
+        {
+            "name": "Nina Patel",
+            "email": "npatel@gmu.edu",
+            "major": "Nursing",
+            "year": "Sophomore",
+            "gpa": 3.7,
+            "profile_data": {
+                "career_goals": "RN then possibly nurse practitioner or clinical specialist",
+                "target_companies": ["Inova", "Children's Hospital", "VA"],
+                "areas_of_interest": "Patient care, pediatrics, public health",
+                "skills": ["Patient care", "Documentation", "Teamwork", "BLS"],
+                "hobbies": "Yoga, cooking, volunteering",
+                "looking_for": ["Career mentorship from alumni", "NCLEX and clinical advice"],
+                "resume_url": None,
+                "courses_taken": ["NURS 244", "BIOL 213", "PSYC 100"],
+                "is_tutor": False
+            },
+            "courses": [(31, "A-", False), (20, "B+", False), (22, "A", False)]  # NURS 244, BIOL 213, PSYC 100
+        },
+        {
+            "name": "Chris Rivera",
+            "email": "crivera@gmu.edu",
+            "major": "Government",
+            "year": "Senior",
+            "gpa": 3.5,
+            "profile_data": {
+                "career_goals": "Policy analyst or legislative staff",
+                "target_companies": ["CBO", "Hill", "Think tanks", "Agencies"],
+                "areas_of_interest": "Policy analysis, legislation, public service",
+                "skills": ["Research", "Writing", "Excel", "Public speaking"],
+                "hobbies": "Politics, debate, running",
+                "looking_for": ["Career mentorship from alumni", "Networking strategies and tips"],
+                "resume_url": None,
+                "courses_taken": ["GOVT 103", "ECON 103", "ENGL 101"],
+                "is_tutor": False
+            },
+            "courses": [(32, "A", False), (26, "B+", False), (28, "A-", False)]  # GOVT 103, ECON 103, ENGL 101
         }
     ]
     
@@ -512,10 +845,10 @@ def seed_data():
     db.commit()
     
     print("✅ Database seeded successfully!")
-    print(f"   - {len(courses)} courses")
-    print(f"   - {len(alumni_users)} alumni")
-    print(f"   - {len(student_users)} students")
-    print(f"   - 3 tutors (Emily, Ryan, Aisha)")
+    print(f"   - {len(courses)} courses (CS, MATH, BIOL, PSYC, BUS, ECON, ENGL, COMM, ME, NURS, GOVT)")
+    print(f"   - {len(alumni_users)} alumni (all majors)")
+    print(f"   - {len(student_users)} students (all majors)")
+    print(f"   - Tutors: Emily, Ryan, Aisha, Jordan, Omar")
     
     db.close()
 

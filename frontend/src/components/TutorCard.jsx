@@ -4,14 +4,10 @@ export default function TutorCard({ tutor, matchScore, matchReasons, showMatchSc
   const [showDetails, setShowDetails] = useState(false);
 
   return (
-    <div
-      className="bg-white rounded-lg shadow-lg p-6 hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 relative"
-      onMouseEnter={() => setShowDetails(true)}
-      onMouseLeave={() => setShowDetails(false)}
-    >
+    <div className="bg-white rounded-lg shadow-lg p-6 hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 relative">
       {/* Match Score Badge (if applicable) */}
       {showMatchScore && matchScore !== undefined && (
-        <div className="absolute top-4 right-4 bg-gmu-green text-white px-3 py-1 rounded-full text-sm font-bold">
+        <div className="absolute top-4 right-4 bg-gmu-green text-white px-3 py-1 rounded-full text-sm font-bold z-20">
           {matchScore}% Match
         </div>
       )}
@@ -69,21 +65,30 @@ export default function TutorCard({ tutor, matchScore, matchReasons, showMatchSc
         </div>
       )}
 
-      {/* Hover Details Overlay */}
-      {showDetails && tutor.bio && (
-        <div className="absolute inset-0 bg-white bg-opacity-95 rounded-lg p-6 flex flex-col justify-center z-10 animate-fadeIn">
-          <p className="text-sm font-semibold text-gray-700 mb-2">About:</p>
-          <p className="text-sm text-gray-700 mb-4">{tutor.bio}</p>
-          {tutor.tutoring_sessions > 0 && (
-            <p className="text-sm text-gmu-green font-semibold">
-              ✓ {tutor.tutoring_sessions} tutoring sessions completed
-            </p>
+      {/* Bio Section with Toggle */}
+      {tutor.bio && (
+        <div className="mb-4">
+          <button
+            onClick={() => setShowDetails(!showDetails)}
+            className="text-sm text-gmu-green font-semibold hover:underline"
+          >
+            {showDetails ? '▼ Hide Details' : '▶ Show Details'}
+          </button>
+          {showDetails && (
+            <div className="mt-2 bg-gray-50 p-3 rounded-lg">
+              <p className="text-sm text-gray-700">{tutor.bio}</p>
+              {tutor.tutoring_sessions > 0 && (
+                <p className="text-sm text-gmu-green font-semibold mt-2">
+                  ✓ {tutor.tutoring_sessions} tutoring sessions completed
+                </p>
+              )}
+            </div>
           )}
         </div>
       )}
 
       {/* Action Button */}
-      <button className="w-full bg-gmu-gold text-gmu-green py-2 rounded-lg hover:bg-yellow-400 transition font-semibold">
+      <button className="w-full bg-gmu-gold text-gmu-green py-2 rounded-lg hover:bg-yellow-400 transition font-semibold z-20 relative">
         Request Session
       </button>
     </div>

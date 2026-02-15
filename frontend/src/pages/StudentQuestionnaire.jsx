@@ -13,6 +13,7 @@ export default function StudentQuestionnaire() {
   const { user } = useAuthStore();
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
+  const [resumeFile, setResumeFile] = useState(null);
   const [formData, setFormData] = useState({
     major: '',
     minor: '',
@@ -28,9 +29,17 @@ export default function StudentQuestionnaire() {
 
   const handleSubmit = async () => {
     try {
+      // Upload resume first if provided
+      if (resumeFile) {
+        const resumeFormData = new FormData();
+        resumeFormData.append('file', resumeFile);
+        await api.post('/users/upload-resume', resumeFormData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+      }
+      
       const response = await api.put('/auth/complete-profile', formData);
       console.log('Profile saved:', response.data);
-      // Update user in auth store
       const updatedUser = { ...useAuthStore.getState().user, profile_completed: true, ...response.data };
       useAuthStore.getState().setUser(updatedUser);
       navigate('/stream-selector');
@@ -206,6 +215,18 @@ export default function StudentQuestionnaire() {
           {step === 3 && (
             <div className="space-y-6">
               <h2 className="text-2xl font-bold text-gray-800 mb-4">Skills & What You're Looking For</h2>
+              
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Upload Resume (Optional)</label>
+                <input
+                  type="file"
+                  accept=".pdf,.docx,.txt"
+                  onChange={(e) => setResumeFile(e.target.files[0])}
+                  className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg"
+                />
+                {resumeFile && <p className="text-sm text-green-600 mt-1">✓ {resumeFile.name}</p>}
+                <p className="text-xs text-gray-500 mt-1">Accepted: PDF, DOCX, TXT</p>
+              </div>
               
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Skills & Technologies</label>

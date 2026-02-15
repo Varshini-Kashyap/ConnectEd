@@ -35,6 +35,7 @@ export const careerAPI = {
   getAlumniById: (id) => api.get(`/alumni/${id}`),
   sendConnection: (data) => api.post('/connections', data),
   getMyConnections: () => api.get('/connections/me'),
+  getPendingRequests: () => api.get('/connections/pending'),
   acceptConnection: (id) => api.put(`/connections/${id}/accept`),
   declineConnection: (id) => api.put(`/connections/${id}/decline`),
 };
@@ -50,6 +51,12 @@ export const studentAPI = {
 export const aiAPI = {
   draftMessage: (data) => api.post('/ai/draft-message', data),
   getMatchExplanation: (targetId) => api.get(`/ai/match-explanation/${targetId}`),
+};
+
+export const messageAPI = {
+  getAcceptedConnections: () => api.get('/connections/accepted'),
+  sendMessage: (data) => api.post('/messages', data),
+  getMessages: (connectionId) => api.get(`/messages/${connectionId}`),
 };
 
 export default api;

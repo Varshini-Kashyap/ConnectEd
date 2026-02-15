@@ -14,15 +14,21 @@ def compute_career_match(student, alumni):
     if alumni.get('company') and alumni['company'] in wishlist:
         score += 30
     
-    # Graduation year proximity (20 points)
+    # Resume content boost (check if alumni company/role mentioned in student resume)
+    student_resume = student.get('resume_text', '')
+    if student_resume and alumni.get('company'):
+        if alumni['company'].lower() in student_resume.lower():
+            score += 10
+    
+    # Graduation year proximity (10 points)
     if student.get('year') and alumni.get('graduation_year'):
         year_map = {'Freshman': 2027, 'Sophomore': 2026, 'Junior': 2025, 'Senior': 2024}
         student_grad = year_map.get(student['year'], 2024)
         years_diff = abs(student_grad - alumni['graduation_year'])
         if years_diff <= 2:
-            score += 20
-        elif years_diff <= 5:
             score += 10
+        elif years_diff <= 5:
+            score += 5
     
     # Currently accepting connections (10 points)
     if alumni.get('accepting_connections', True):

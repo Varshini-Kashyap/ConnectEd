@@ -20,6 +20,7 @@ export const useCareerStore = create((set, get) => ({
   sendConnection: async (targetId, message) => {
     try {
       await careerAPI.sendConnection({ target_id: targetId, message });
+      await get().fetchConnections(); // Refetch to update UI
       return true;
     } catch (error) {
       set({ error: error.response?.data?.detail || 'Failed to send connection' });

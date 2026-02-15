@@ -13,11 +13,18 @@ export default function HelpRequestForm({ onSuccess }) {
   const [matches, setMatches] = useState([]);
   const [requestId, setRequestId] = useState(null);
 
-  const { courses, fetchCourses, createRequest, matchRequest, loading } = useStudentStore();
+  const { courses, fetchCourses, createRequest, matchRequest, loading, error } = useStudentStore();
 
   useEffect(() => {
     fetchCourses();
   }, []);
+
+  useEffect(() => {
+    console.log('Courses loaded:', courses);
+    if (courses && courses.length > 0) {
+      console.log('First course:', courses[0]);
+    }
+  }, [courses]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -164,6 +171,12 @@ export default function HelpRequestForm({ onSuccess }) {
     <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-lg p-6 space-y-4">
       <h3 className="text-2xl font-bold text-gmu-green mb-4">Request Help</h3>
 
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          {error}
+        </div>
+      )}
+
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">Course *</label>
         <select
@@ -173,12 +186,19 @@ export default function HelpRequestForm({ onSuccess }) {
           required
         >
           <option value="">Select a course</option>
-          {courses.map((course) => (
-            <option key={course.id} value={course.id}>
-              {course.code} - {course.name}
-            </option>
-          ))}
+          {courses && courses.length > 0 ? (
+            courses.map((course) => (
+              <option key={course.id} value={course.id}>
+                {course.code} - {course.name}
+              </option>
+            ))
+          ) : (
+            <option disabled>Loading courses...</option>
+          )}
         </select>
+        {courses && courses.length === 0 && (
+          <p className="text-xs text-red-500 mt-1">No courses available. Please contact support.</p>
+        )}
       </div>
 
       <div>

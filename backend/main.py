@@ -1,12 +1,13 @@
-from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi import FastAPI, Depends, HTTPException, Query, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import models, schemas
 from database import get_db, engine
 from auth import verify_password, get_password_hash, create_access_token, get_current_user
-from ai_service import match_tutors_with_request, draft_outreach_message, explain_match
+from ai_service import match_tutors_with_request, draft_outreach_message, explain_match, search_alumni_strict, search_alumni_closest_match
 from matching import compute_career_match, compute_tutor_match
+from resume_service import parse_resume, encode_file_to_base64
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -105,16 +106,17 @@ def get_me(user_id: str = Depends(get_current_user), db: Session = Depends(get_d
 # CAREER STREAM ENDPOINTS
 @app.get("/api/alumni")
 def get_alumni(
+    q: Optional[str] = None,
     major: Optional[str] = None,
     company: Optional[str] = None,
     user_id: str = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     query = db.query(models.User).filter(models.User.role == 'alumni')
-    
-    if major:
+    # Ignore "All" / empty so search bar works when filters are at default
+    if major and str(major).strip().lower() not in ("", "all"):
         query = query.filter(models.User.major.ilike(f"%{major}%"))
-    if company:
+    if company and str(company).strip().lower() not in ("", "all"):
         query = query.filter(models.User.company.ilike(f"%{company}%"))
     
     alumni = query.all()
@@ -141,7 +143,8 @@ def get_alumni(
             student_dict = {
                 "major": student.major,
                 "year": student.year,
-                "company_wishlist": student.profile_data.get("target_companies", [])
+                "company_wishlist": student.profile_data.get("target_companies", []),
+                "resume_text": student.profile_data.get("resume_text", "")
             }
             match_score = compute_career_match(student_dict, alum_dict)
             alum_dict["match_score"] = match_score
@@ -150,7 +153,50 @@ def get_alumni(
         
         result.append(alum_dict)
     
-    return sorted(result, key=lambda x: x.get("match_score", 0), reverse=True)
+    # When q is provided: single-word = keyword + semantic; multi-word = analyze full DB for closest match (ignore profile match %)
+    if q and q.strip():
+        q_clean = q.strip()
+        words = [w for w in q_clean.split() if len(w) >= 2]
+        if not words:
+            words = [q_clean]
+
+        # Multi-word: analyze full database, return closest matches only (no keyword filter, no match_score)
+        if len(words) > 1:
+            alumni_for_search = [
+                {"id": r["id"], "name": r["name"], "company": r["company"], "job_title": r["job_title"], "major": r["major"], "bio": r["bio"]}
+                for r in result
+            ]
+            search_result = search_alumni_closest_match(q_clean, alumni_for_search, top_n=15)
+            id_to_full = {r["id"]: r for r in result}
+            result = [id_to_full[s["id"]] for s in search_result if s["id"] in id_to_full]
+        else:
+            # Single-word: keyword/regex filter then semantic rank
+            def text_contains(record: dict, term: str) -> bool:
+                term_lower = term.lower()
+                for field in ("name", "company", "job_title", "major", "bio"):
+                    val = record.get(field) or ""
+                    if term_lower in str(val).lower():
+                        return True
+                return False
+
+            keyword_matches = [r for r in result if text_contains(r, words[0])]
+            candidates = keyword_matches if keyword_matches else result
+            alumni_for_search = [
+                {"id": r["id"], "name": r["name"], "company": r["company"], "job_title": r["job_title"], "major": r["major"], "bio": r["bio"]}
+                for r in candidates
+            ]
+            search_result = search_alumni_strict(q_clean, alumni_for_search, top_n=20)
+            id_to_full = {r["id"]: r for r in result}
+            semantic_ids = {s["id"] for s in search_result}
+            ordered = [id_to_full[s["id"]] for s in search_result if s["id"] in id_to_full]
+            for r in keyword_matches:
+                if r["id"] not in semantic_ids:
+                    ordered.append(r)
+            result = ordered
+    else:
+        result = sorted(result, key=lambda x: x.get("match_score", 0), reverse=True)
+
+    return result
 
 @app.get("/api/alumni/{alumni_id}")
 def get_alumni_by_id(alumni_id: str, db: Session = Depends(get_db)):
@@ -183,7 +229,68 @@ def get_my_connections(user_id: str = Depends(get_current_user), db: Session = D
     connections = db.query(models.Connection).filter(
         (models.Connection.requester_id == user_id) | (models.Connection.target_id == user_id)
     ).all()
-    return connections
+    
+    result = []
+    for conn in connections:
+        other_user_id = conn.target_id if conn.requester_id == user_id else conn.requester_id
+        other_user = db.query(models.User).filter(models.User.id == other_user_id).first()
+        
+        # Skip if user was deleted
+        if not other_user:
+            continue
+            
+        result.append({
+            "id": conn.id,
+            "status": conn.status,
+            "message": conn.message,
+            "created_at": conn.created_at,
+            "is_requester": conn.requester_id == user_id,
+            "other_user": {
+                "id": other_user.id,
+                "name": other_user.name,
+                "email": other_user.email,
+                "role": other_user.role,
+                "avatar_url": other_user.avatar_url,
+                "company": other_user.company,
+                "job_title": other_user.job_title,
+                "major": other_user.major,
+                "year": other_user.year
+            }
+        })
+    return result
+
+@app.get("/api/connections/pending")
+def get_pending_requests(user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    pending = db.query(models.Connection).filter(
+        models.Connection.target_id == user_id,
+        models.Connection.status == 'pending'
+    ).all()
+    
+    result = []
+    for conn in pending:
+        requester = db.query(models.User).filter(models.User.id == conn.requester_id).first()
+        
+        # Skip if requester was deleted
+        if not requester:
+            continue
+            
+        result.append({
+            "id": conn.id,
+            "message": conn.message,
+            "created_at": conn.created_at,
+            "requester": {
+                "id": requester.id,
+                "name": requester.name,
+                "email": requester.email,
+                "role": requester.role,
+                "avatar_url": requester.avatar_url,
+                "company": requester.company,
+                "job_title": requester.job_title,
+                "major": requester.major,
+                "year": requester.year
+            }
+        })
+    return result
 
 @app.put("/api/connections/{connection_id}/accept")
 def accept_connection(
@@ -403,11 +510,20 @@ def ai_match_explanation(
     student_profile = student.profile_data or {}
     target_profile = target.profile_data or {}
     
-    student_dict = {"major": student.major, "interests": student_profile.get("areas_of_interest", "")}
+    student_dict = {
+        "major": student.major, 
+        "interests": student_profile.get("areas_of_interest", ""),
+        "resume_text": student_profile.get("resume_text", "")
+    }
     target_dict = {"major": target.major, "job_title": target.job_title, "company": target.company}
     
     match_score = compute_career_match(
-        {"major": student.major, "year": student.year, "company_wishlist": student_profile.get("target_companies", [])},
+        {
+            "major": student.major, 
+            "year": student.year, 
+            "company_wishlist": student_profile.get("target_companies", []),
+            "resume_text": student_profile.get("resume_text", "")
+        },
         {"major": target.major, "company": target.company, "graduation_year": target.graduation_year, "accepting_connections": target_profile.get("accepting_requests", True)}
     )
     
@@ -417,3 +533,136 @@ def ai_match_explanation(
 @app.get("/")
 def root():
     return {"message": "ConnectEd API - GMU Student Connection Platform"}
+
+# MESSAGE ENDPOINTS
+@app.get("/api/connections/accepted")
+def get_accepted_connections(user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    connections = db.query(models.Connection).filter(
+        ((models.Connection.requester_id == user_id) | (models.Connection.target_id == user_id)),
+        models.Connection.status == 'accepted'
+    ).all()
+    
+    result = []
+    for conn in connections:
+        other_user_id = conn.target_id if conn.requester_id == user_id else conn.requester_id
+        other_user = db.query(models.User).filter(models.User.id == other_user_id).first()
+        
+        if not other_user:
+            continue
+        
+        result.append({
+            "id": conn.id,
+            "other_user": {
+                "id": other_user.id,
+                "name": other_user.name,
+                "avatar_url": other_user.avatar_url,
+                "company": other_user.company,
+                "job_title": other_user.job_title
+            }
+        })
+    return result
+
+@app.post("/api/messages")
+def send_message(
+    message: schemas.MessageCreate,
+    user_id: str = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # Verify connection exists and user is part of it
+    connection = db.query(models.Connection).filter(models.Connection.id == message.connection_id).first()
+    if not connection:
+        raise HTTPException(status_code=404, detail="Connection not found")
+    
+    if connection.requester_id != user_id and connection.target_id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    db_message = models.Message(
+        connection_id=message.connection_id,
+        sender_id=user_id,
+        content=message.content
+    )
+    db.add(db_message)
+    db.commit()
+    db.refresh(db_message)
+    return db_message
+
+@app.get("/api/messages/{connection_id}")
+def get_messages(
+    connection_id: str,
+    user_id: str = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # Verify connection exists and user is part of it
+    connection = db.query(models.Connection).filter(models.Connection.id == connection_id).first()
+    if not connection:
+        raise HTTPException(status_code=404, detail="Connection not found")
+    
+    if connection.requester_id != user_id and connection.target_id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    messages = db.query(models.Message).filter(
+        models.Message.connection_id == connection_id
+    ).order_by(models.Message.created_at).all()
+    
+    return messages
+
+# RESUME UPLOAD ENDPOINT
+@app.post("/api/users/upload-resume")
+async def upload_resume(
+    file: UploadFile = File(...),
+    user_id: str = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Validate file type
+    allowed_types = ['.pdf', '.docx', '.txt']
+    if not any(file.filename.lower().endswith(ext) for ext in allowed_types):
+        raise HTTPException(status_code=400, detail="Only PDF, DOCX, and TXT files are allowed")
+    
+    # Read file content
+    content = await file.read()
+    
+    # Parse resume text
+    parsed_text = parse_resume(content, file.filename)
+    
+    # Encode to base64 for blob storage
+    encoded_content = encode_file_to_base64(content)
+    
+    # Store in database
+    user.resume = encoded_content
+    user.resume_filename = file.filename
+    user.resume_parsed_text = parsed_text
+    
+    # Also store in profile_data JSON
+    profile_data = user.profile_data or {}
+    profile_data['resume_filename'] = file.filename
+    profile_data['resume_text'] = parsed_text
+    user.profile_data = profile_data
+    
+    db.commit()
+    
+    return {
+        "message": "Resume uploaded successfully",
+        "filename": file.filename,
+        "parsed_length": len(parsed_text)
+    }
+
+@app.get("/api/users/resume")
+def get_resume(
+    user_id: str = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if not user.resume:
+        raise HTTPException(status_code=404, detail="No resume uploaded")
+    
+    return {
+        "filename": user.resume_filename,
+        "parsed_text": user.resume_parsed_text
+    }

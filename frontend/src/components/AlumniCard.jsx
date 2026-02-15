@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
 import MessageModal from './MessageModal';
 import { aiAPI } from '../services/api';
+import { useChatStore } from '../stores/chatStore';
 
-export default function AlumniCard({ alumni, connectionStatus }) {
+export default function AlumniCard({ alumni, connectionStatus, connection }) {
   const [showModal, setShowModal] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
   const [matchReasons, setMatchReasons] = useState([]);
   const [loadingReasons, setLoadingReasons] = useState(false);
   const [animatedScore, setAnimatedScore] = useState(0);
+  const { openChat } = useChatStore();
 
   useEffect(() => {
     // Animate score on mount
@@ -130,9 +132,15 @@ export default function AlumniCard({ alumni, connectionStatus }) {
             Request Pending
           </div>
         ) : connectionStatus === 'accepted' ? (
-          <div className="w-full bg-green-100 text-green-800 py-2 rounded-lg text-center font-semibold">
-            ✓ Connected
-          </div>
+          <button
+            onClick={() => openChat(connection)}
+            className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition font-semibold flex items-center justify-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm3.293 1.293a1 1 0 011.414 0l3.293 3.293 3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+            </svg>
+            Message
+          </button>
         ) : (
           <button
             onClick={() => setShowModal(true)}

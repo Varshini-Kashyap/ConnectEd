@@ -72,7 +72,6 @@ class CourseResponse(BaseModel):
     code: str
     name: str
     department: str
-    subject: Optional[str]
     
     class Config:
         from_attributes = True
@@ -123,3 +122,18 @@ class Token(BaseModel):
 class DraftMessageRequest(BaseModel):
     target_id: str
     target_type: str
+
+class MessageCreate(BaseModel):
+    connection_id: str
+    content: str
+
+class MessageResponse(BaseModel):
+    id: str
+    connection_id: str
+    sender_id: str
+    content: str
+    created_at: datetime
+    read: bool
+    
+    class Config:
+        from_attributes = True

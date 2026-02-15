@@ -1,53 +1,53 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useCareerStore } from '../stores/careerStore';
+import { useAuthStore } from '../stores/authStore';
 import NavBar from '../components/NavBar';
 import AlumniCard from '../components/AlumniCard';
 
+const SEARCH_DEBOUNCE_MS = 400;
+
 export default function Career() {
-  const { alumni, connections, fetchAlumni, fetchConnections, loading } = useCareerStore();
+  const { alumni, connections, fetchAlumni, fetchConnections, loading, error } = useCareerStore();
+  const { user } = useAuthStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMajor, setSelectedMajor] = useState('All');
-  const [selectedCompany, setSelectedCompany] = useState('');
-  const [filteredAlumni, setFilteredAlumni] = useState([]);
+  const [selectedCompany, setSelectedCompany] = useState('All');
+  const debounceRef = useRef(null);
 
-  const majors = ['All', 'Computer Science', 'Information Technology', 'Software Engineering', 'Cyber Security Engineering'];
-  const companies = ['All', 'Google', 'Amazon', 'Microsoft', 'Capital One', 'Accenture', 'Deloitte'];
+  const majors = ['All', 'Computer Science', 'Information Systems', 'Data Science', 'Cyber Security Engineering', 'Systems Engineering', 'Biology', 'Psychology', 'Business', 'Economics', 'English', 'Mechanical Engineering', 'Nursing', 'Government'];
+  const companies = ['All', 'Google', 'Amazon', 'Microsoft', 'Capital One', 'Accenture', 'Deloitte', 'Meta', 'Apple', 'Stripe', 'NIH', 'JPMorgan Chase', 'Federal Reserve', 'Boeing', 'Inova', 'CBO'];
 
+  const fetchWithFilters = useCallback(() => {
+    const params = {};
+    if (searchTerm.trim()) params.q = searchTerm.trim();
+    if (selectedMajor && selectedMajor !== 'All') params.major = selectedMajor;
+    if (selectedCompany && selectedCompany !== 'All') params.company = selectedCompany;
+    fetchAlumni(params);
+  }, [searchTerm, selectedMajor, selectedCompany, fetchAlumni]);
+
+  // Initial load: fetch connections; alumni are loaded by the filter effect below
   useEffect(() => {
-    fetchAlumni();
     fetchConnections();
-  }, []);
+  }, [fetchConnections]);
 
+  // Single source of truth: when search term or pill filters change, refetch. Debounce only when user is typing (search term non-empty).
   useEffect(() => {
-    let filtered = alumni;
-
-    // Search filter
-    if (searchTerm) {
-      filtered = filtered.filter(alum =>
-        alum.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        alum.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        alum.major.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!searchTerm.trim()) {
+      fetchWithFilters();
+      return;
     }
+    debounceRef.current = setTimeout(fetchWithFilters, SEARCH_DEBOUNCE_MS);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [searchTerm, selectedMajor, selectedCompany, fetchWithFilters]);
 
-    // Major filter
-    if (selectedMajor !== 'All') {
-      filtered = filtered.filter(alum => alum.major === selectedMajor);
-    }
-
-    // Company filter
-    if (selectedCompany && selectedCompany !== 'All') {
-      filtered = filtered.filter(alum => alum.company === selectedCompany);
-    }
-
-    setFilteredAlumni(filtered);
-  }, [alumni, searchTerm, selectedMajor, selectedCompany]);
+  const filteredAlumni = alumni.filter(alum => alum.id !== user?.id); // Don't show own profile
 
   const getConnectionStatus = (alumniId) => {
     const connection = connections.find(
-      conn => conn.target_id === alumniId || conn.requester_id === alumniId
+      conn => conn.other_user?.id === alumniId
     );
-    return connection?.status;
+    return { status: connection?.status, connection };
   };
 
   return (
@@ -65,7 +65,7 @@ export default function Career() {
           <div className="relative">
             <input
               type="text"
-              placeholder="Search by name, company, or major..."
+              placeholder="e.g. people from Microsoft who are data analysts..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full px-4 py-3 pl-12 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-gmu-green focus:border-transparent text-lg"
@@ -129,6 +129,12 @@ export default function Career() {
           </div>
         </div>
 
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+            {error}
+          </div>
+        )}
+
         {/* Results Count */}
         <div className="mb-4">
           <p className="text-gray-600">
@@ -150,7 +156,7 @@ export default function Career() {
               onClick={() => {
                 setSearchTerm('');
                 setSelectedMajor('All');
-                setSelectedCompany('');
+                setSelectedCompany('All');
               }}
               className="mt-4 text-gmu-green hover:underline"
             >
@@ -159,13 +165,17 @@ export default function Career() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredAlumni.map((alum) => (
-              <AlumniCard
-                key={alum.id}
-                alumni={alum}
-                connectionStatus={getConnectionStatus(alum.id)}
-              />
-            ))}
+            {filteredAlumni.map((alum) => {
+              const { status, connection } = getConnectionStatus(alum.id);
+              return (
+                <AlumniCard
+                  key={alum.id}
+                  alumni={alum}
+                  connectionStatus={status}
+                  connection={connection}
+                />
+              );
+            })}
           </div>
         )}
       </div>

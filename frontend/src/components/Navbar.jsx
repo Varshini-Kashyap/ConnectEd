@@ -1,12 +1,34 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
+import { useChatStore } from '../stores/chatStore';
+import { useState, useEffect } from 'react';
+import { careerAPI } from '../services/api';
 
 export default function NavBar() {
   const { user, logout } = useAuthStore();
+  const { clearAllChats } = useChatStore();
   const navigate = useNavigate();
   const location = useLocation();
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    const fetchPending = async () => {
+      try {
+        const response = await careerAPI.getPendingRequests();
+        console.log('Pending requests response:', response.data);
+        setPendingCount(response.data.length);
+      } catch (error) {
+        console.error('Error fetching pending requests:', error);
+      }
+    };
+    
+    fetchPending();
+    const interval = setInterval(fetchPending, 10000); // Check every 10 seconds
+    return () => clearInterval(interval);
+  }, []);
 
   const handleLogout = () => {
+    clearAllChats(); // Clear all open chats
     logout();
     navigate('/login');
   };
@@ -43,6 +65,27 @@ export default function NavBar() {
               }`}
             >
               Profile
+            </Link>
+            <Link
+              to="/requests"
+              className={`hover:text-gmu-gold transition relative ${
+                location.pathname === '/requests' ? 'text-gmu-gold' : ''
+              }`}
+            >
+              Requests
+              {pendingCount > 0 && (
+                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                  {pendingCount}
+                </span>
+              )}
+            </Link>
+            <Link
+              to="/messages"
+              className={`hover:text-gmu-gold transition ${
+                location.pathname === '/messages' ? 'text-gmu-gold' : ''
+              }`}
+            >
+              Messages
             </Link>
 
             {user && (

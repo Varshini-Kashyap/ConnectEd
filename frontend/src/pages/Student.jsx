@@ -1,20 +1,59 @@
 import { useEffect, useState } from 'react';
 import { useStudentStore } from '../stores/studentStore';
+import { useAuthStore } from '../stores/authStore';
+import { useChatStore } from '../stores/chatStore';
+import { studentAPI } from '../services/api';
+import { careerAPI } from '../services/api';
 import NavBar from '../components/NavBar';
 import TutorCard from '../components/TutorCard';
 import HelpRequestForm from '../components/HelpRequestForm';
 
 export default function Student() {
   const { tutors, requests, courses, fetchTutors, fetchRequests, fetchCourses, loading } = useStudentStore();
-  const [activeTab, setActiveTab] = useState('find'); // find, post, my-requests
+  const { user } = useAuthStore();
+  const { openChat } = useChatStore();
+  const [activeTab, setActiveTab] = useState('students'); // students, find, post, my-requests
   const [selectedCourse, setSelectedCourse] = useState('all');
   const [filteredTutors, setFilteredTutors] = useState([]);
+  const [students, setStudents] = useState([]);
+  const [connections, setConnections] = useState([]);
+  const [loadingStudents, setLoadingStudents] = useState(false);
 
   useEffect(() => {
     fetchTutors();
     fetchRequests();
     fetchCourses();
+    fetchStudents();
+    fetchConnections();
   }, []);
+
+  const fetchStudents = async () => {
+    setLoadingStudents(true);
+    try {
+      const response = await studentAPI.getStudents();
+      setStudents(response.data.filter(s => s.id !== user?.id)); // Don't show own profile
+    } catch (error) {
+      console.error('Error fetching students:', error);
+    } finally {
+      setLoadingStudents(false);
+    }
+  };
+
+  const fetchConnections = async () => {
+    try {
+      const response = await careerAPI.getMyConnections();
+      setConnections(response.data);
+    } catch (error) {
+      console.error('Error fetching connections:', error);
+    }
+  };
+
+  const getConnectionStatus = (studentId) => {
+    const connection = connections.find(
+      conn => conn.other_user?.id === studentId
+    );
+    return { status: connection?.status, connection };
+  };
 
   useEffect(() => {
     if (selectedCourse === 'all') {
@@ -78,6 +117,90 @@ export default function Student() {
             </button>
           </div>
         </div>
+
+        {/* Students Tab */}
+        {activeTab === 'students' && (
+          <div>
+            <div className="mb-4">
+              <p className="text-gray-600">
+                Showing <span className="font-bold text-gmu-green">{students.length}</span> students
+              </p>
+            </div>
+
+            {loadingStudents ? (
+              <div className="flex flex-col items-center justify-center py-20">
+                <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-gmu-green mb-4"></div>
+                <p className="text-gray-600 text-lg">Loading students...</p>
+              </div>
+            ) : students.length === 0 ? (
+              <div className="text-center py-20 bg-white rounded-lg shadow">
+                <p className="text-gray-600 text-lg">No students found</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {students.map((student) => {
+                  const { status, connection } = getConnectionStatus(student.id);
+                  return (
+                    <div key={student.id} className="bg-white rounded-lg shadow-lg p-6 hover:shadow-2xl transition">
+                      <div className="flex items-start mb-4">
+                        <img
+                          src={student.avatar_url}
+                          alt={student.name}
+                          className="w-16 h-16 rounded-full mr-4 border-2 border-gmu-green"
+                        />
+                        <div className="flex-1">
+                          <h3 className="text-xl font-bold text-gray-800">{student.name}</h3>
+                          <p className="text-gray-600 text-sm">{student.year}</p>
+                          {student.gpa && (
+                            <p className="text-sm text-gray-600">GPA: {student.gpa.toFixed(2)}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 mb-4">
+                        <p className="text-sm">
+                          <strong className="text-gray-700">Major:</strong> {student.major}
+                        </p>
+                        {student.bio && (
+                          <p className="text-gray-700 text-sm line-clamp-3">{student.bio}</p>
+                        )}
+                      </div>
+
+                      {status === 'pending' ? (
+                        <div className="w-full bg-yellow-100 text-yellow-800 py-2 rounded-lg text-center font-semibold">
+                          Request Pending
+                        </div>
+                      ) : status === 'accepted' ? (
+                        <button
+                          onClick={() => openChat(connection)}
+                          className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition font-semibold flex items-center justify-center gap-2"
+                        >
+                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm3.293 1.293a1 1 0 011.414 0l3.293 3.293 3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+                          </svg>
+                          Message
+                        </button>
+                      ) : (
+                        <button
+                          onClick={async () => {
+                            await careerAPI.sendConnection({
+                              target_id: student.id,
+                              message: `Hi ${student.name}, I'd love to connect!`
+                            });
+                            fetchConnections();
+                          }}
+                          className="w-full bg-gmu-green text-white py-2 rounded-lg hover:bg-green-700 transition font-semibold"
+                        >
+                          Connect
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Find Tutors Tab */}
         {activeTab === 'find' && (

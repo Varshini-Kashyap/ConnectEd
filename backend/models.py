@@ -37,6 +37,11 @@ class User(Base):
     profile_summary = Column(Text)
     last_ai_update = Column(DateTime)
     
+    # Resume storage
+    resume = Column(Text)  # Base64 encoded blob
+    resume_filename = Column(String)
+    resume_parsed_text = Column(Text)
+    
     # Relationships
     student_courses = relationship("StudentCourse", back_populates="user", cascade="all, delete-orphan")
     help_requests = relationship("HelpRequest", back_populates="student", cascade="all, delete-orphan")
@@ -113,3 +118,13 @@ class TutorMatch(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     
     request = relationship("HelpRequest", back_populates="matches")
+
+class Message(Base):
+    __tablename__ = "messages"
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    connection_id = Column(String, ForeignKey("connections.id", ondelete="CASCADE"), nullable=False)
+    sender_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    read = Column(Boolean, default=False)

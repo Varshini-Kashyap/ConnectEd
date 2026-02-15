@@ -35,8 +35,10 @@ export const useStudentStore = create((set) => ({
     try {
       const response = await studentAPI.getHelpRequests(status);
       set({ requests: response.data, loading: false });
+      return response.data;
     } catch (error) {
       set({ error: error.response?.data?.detail || 'Failed to fetch requests', loading: false });
+      return [];
     }
   },
 
@@ -51,11 +53,17 @@ export const useStudentStore = create((set) => ({
   },
 
   fetchCourses: async () => {
+    set({ loading: true, error: null });
     try {
+      console.log('Fetching courses from API...');
       const response = await studentAPI.getCourses();
-      set({ courses: response.data });
+      console.log('Courses response:', response.data);
+      set({ courses: response.data, loading: false });
+      return response.data;
     } catch (error) {
-      set({ error: error.response?.data?.detail || 'Failed to fetch courses' });
+      console.error('Error fetching courses:', error);
+      set({ error: error.response?.data?.detail || 'Failed to fetch courses', loading: false });
+      return [];
     }
   },
 }));
