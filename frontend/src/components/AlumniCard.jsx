@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import MessageModal from './MessageModal';
 import { aiAPI } from '../services/api';
 import { useChatStore } from '../stores/chatStore';
@@ -14,12 +15,24 @@ export default function AlumniCard({ alumni, connectionStatus, connection }) {
   const [matchReasons, setMatchReasons] = useState([]);
   const [loadingReasons, setLoadingReasons] = useState(false);
   const [animatedScore, setAnimatedScore] = useState(0);
+  const [tooltipRect, setTooltipRect] = useState(null);
+  const badgeRef = useRef(null);
   const { openChat } = useChatStore();
 
   useEffect(() => {
     const timer = setTimeout(() => setAnimatedScore(alumni.match_score || 0), 100);
     return () => clearTimeout(timer);
   }, [alumni.match_score]);
+
+  // Position tooltip above badge (measure on show) so it isn't clipped by card overflow
+  useEffect(() => {
+    if (!showTooltip || !badgeRef.current) return;
+    const rect = badgeRef.current.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const tooltipW = 256;
+    const left = Math.max(8, Math.min(centerX - tooltipW / 2, window.innerWidth - tooltipW - 8));
+    setTooltipRect({ left, bottom: window.innerHeight - rect.top });
+  }, [showTooltip]);
 
   // Fetch match reasons only when user hovers over the match badge (avoids N LLM calls per page load)
   const fetchedReasonsRef = useRef(false);
@@ -36,41 +49,56 @@ export default function AlumniCard({ alumni, connectionStatus, connection }) {
 
   const initials = getInitials(alumni.name);
 
+  const tooltipPortal = showTooltip && tooltipRect && typeof document !== 'undefined' && createPortal(
+    <div
+      className="fixed w-64 p-4 rounded-xl shadow-xl text-sm z-[9999] max-h-[70vh] overflow-y-auto"
+      style={{
+        background: 'var(--cream-900)',
+        color: 'var(--cream-100)',
+        left: tooltipRect.left,
+        bottom: tooltipRect.bottom + 8,
+      }}
+      role="tooltip"
+      onMouseEnter={() => setShowTooltip(true)}
+      onMouseLeave={() => setShowTooltip(false)}
+    >
+      <p className="font-semibold mb-2">Why this match?</p>
+      {loadingReasons ? (
+        <p className="text-sm opacity-80">Loading…</p>
+      ) : matchReasons.length > 0 ? (
+        <ul className="space-y-1.5">
+          {matchReasons.map((r, i) => (
+            <li key={i}>• {r}</li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm opacity-80">Unable to load reasons.</p>
+      )}
+    </div>,
+    document.body
+  );
+
   return (
     <>
+      {tooltipPortal}
       <div className="profile-card-warm relative">
         <div className="relative h-20" style={{ background: 'var(--gradient-primary)' }}>
           {alumni.match_score !== undefined && (
-            <div className="absolute top-4 right-4">
+            <div className="absolute top-3 right-4 flex items-center justify-end">
               <div
-                className="relative inline-block px-3 py-1.5 rounded-full text-sm font-bold cursor-help"
+                ref={badgeRef}
+                className="inline-flex items-baseline gap-0.5 px-4 py-2 rounded-full cursor-help border-2 border-white/40 shadow-md"
                 style={{ background: 'var(--coral-600)', color: 'white' }}
                 onMouseEnter={() => {
                   setShowTooltip(true);
                   fetchReasons();
                 }}
                 onMouseLeave={() => setShowTooltip(false)}
+                title="Hover for match reasons"
               >
-                {animatedScore}% Match
-                {showTooltip && (
-                  <div
-                    className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-64 p-4 rounded-lg shadow-xl text-sm z-20"
-                    style={{ background: 'var(--cream-900)', color: 'var(--cream-100)' }}
-                  >
-                    <p className="font-semibold mb-2">Why this match?</p>
-                    {loadingReasons ? (
-                      <p className="text-sm opacity-80">Loading…</p>
-                    ) : matchReasons.length > 0 ? (
-                      <ul className="space-y-1">
-                        {matchReasons.map((r, i) => (
-                          <li key={i}>• {r}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-sm opacity-80">Unable to load reasons.</p>
-                    )}
-                  </div>
-                )}
+                <span className="font-dm-sans text-xl font-bold tabular-nums">{animatedScore}</span>
+                <span className="text-sm font-semibold opacity-95">%</span>
+                <span className="text-xs font-medium ml-1 opacity-90">match</span>
               </div>
             </div>
           )}

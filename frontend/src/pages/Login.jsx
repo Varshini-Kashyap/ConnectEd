@@ -85,13 +85,9 @@ export default function Login() {
             <label htmlFor="login-password" className="block font-dm-sans text-sm font-medium" style={{ color: 'var(--cream-900)' }}>
               Password
             </label>
-            <button
-              type="button"
-              className="text-sm font-medium transition-colors hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-coral-500 focus-visible:ring-offset-2 rounded"
-              style={{ color: 'var(--coral-600)' }}
-            >
-              Forgot password?
-            </button>
+            <span className="text-sm" style={{ color: 'var(--cream-600)' }} aria-hidden="true">
+              Need help? Contact your administrator
+            </span>
           </div>
           <input
             id="login-password"

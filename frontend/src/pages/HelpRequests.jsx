@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useToastStore } from '../stores/toastStore';
 import { helpRequestsAPI, coursesAPI } from '../services/api';
 
 export default function HelpRequests({ user }) {
@@ -41,18 +42,18 @@ export default function HelpRequests({ user }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!user) {
-      alert('Please login to create a help request');
+      useToastStore.getState().error('Please login to create a help request');
       return;
     }
     
     try {
       await helpRequestsAPI.create(formData, user.id);
-      alert('Help request created! AI is finding the best tutors for you...');
+      useToastStore.getState().success('Help request created! AI is finding the best tutors for you.');
       setShowForm(false);
       setFormData({ course_id: '', title: '', description: '', urgent: false });
       loadRequests();
     } catch (error) {
-      alert('Failed to create help request');
+      useToastStore.getState().error('Failed to create help request');
     }
   };
 
@@ -65,7 +66,7 @@ export default function HelpRequests({ user }) {
       setMatches(response.data);
     } catch (error) {
       console.error('Failed to load matches:', error);
-      alert('Failed to find tutor matches');
+      useToastStore.getState().error('Failed to find tutor matches');
     } finally {
       setLoadingMatches(false);
     }

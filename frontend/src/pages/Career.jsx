@@ -2,7 +2,9 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useCareerStore } from '../stores/careerStore';
 import { useAuthStore } from '../stores/authStore';
 import NavBar from '../components/NavBar';
+import AppFooter from '../components/AppFooter';
 import AlumniCard from '../components/AlumniCard';
+import SkeletonAlumniCard from '../components/SkeletonAlumniCard';
 
 const SEARCH_DEBOUNCE_MS = 400;
 
@@ -52,9 +54,9 @@ export default function Career() {
   };
 
   return (
-    <div className="min-h-screen" style={{ background: 'var(--cream-100)' }}>
+    <div className="min-h-screen flex flex-col" style={{ background: 'var(--cream-100)' }}>
       <NavBar />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 flex-1 w-full">
         <div className="mb-8">
           <h1
             className="text-3xl sm:text-4xl font-bold mb-2 font-dm-sans"
@@ -133,8 +135,11 @@ export default function Career() {
         </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-            {error}
+          <div className="mb-4 p-4 rounded-xl border flex flex-wrap items-center justify-between gap-3" style={{ background: 'rgba(220,38,38,0.08)', borderColor: 'rgba(220,38,38,0.3)' }}>
+            <p className="text-sm" style={{ color: 'var(--cream-900)' }}>{error}</p>
+            <button type="button" onClick={() => fetchWithFilters()} className="btn-secondary-warm text-sm py-2 px-4">
+              Retry
+            </button>
           </div>
         )}
 
@@ -176,23 +181,22 @@ export default function Career() {
         </div>
 
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-20">
-            <div className="animate-spin rounded-full h-16 w-16 border-b-4 mb-4" style={{ borderColor: 'var(--coral-600)' }} />
-            <p className="text-lg" style={{ color: 'var(--cream-700)' }}>Loading alumni...</p>
+          <div className={`stagger-children ${viewMode === 'list' ? 'flex flex-col gap-4' : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'}`}>
+            {Array.from({ length: 6 }, (_, i) => <SkeletonAlumniCard key={i} />)}
           </div>
         ) : filteredAlumni.length === 0 ? (
           <div className="text-center py-20">
-            <p className="text-lg mb-4" style={{ color: 'var(--cream-700)' }}>No alumni found matching your criteria</p>
+            <p className="text-lg mb-2" style={{ color: 'var(--cream-700)' }}>No alumni found matching your criteria</p>
+            <p className="text-sm mb-6" style={{ color: 'var(--cream-600)' }}>Try a different search or broaden your filters.</p>
             <button
-              onClick={() => { setSearchTerm(''); setSelectedMajor('All'); setSelectedCompany('All'); }}
-              className="font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-coral-500 focus-visible:ring-offset-2 rounded"
-              style={{ color: 'var(--coral-600)' }}
+              onClick={() => { setSearchTerm(''); setSelectedMajor('All'); setSelectedCompany('All'); fetchWithFilters(); }}
+              className="btn-primary-warm py-2.5 px-6 focus:outline-none focus-visible:ring-2 focus-visible:ring-coral-500 focus-visible:ring-offset-2"
             >
               Clear filters
             </button>
           </div>
         ) : (
-          <div className={viewMode === 'list' ? 'flex flex-col gap-4' : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'}>
+          <div className={`stagger-children ${viewMode === 'list' ? 'flex flex-col gap-4' : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'}`}>
             {filteredAlumni.map((alum) => {
               const { status, connection } = getConnectionStatus(alum.id);
               return (
@@ -207,6 +211,7 @@ export default function Career() {
           </div>
         )}
       </div>
+      <AppFooter />
     </div>
   );
 }

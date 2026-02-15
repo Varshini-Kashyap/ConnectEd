@@ -87,7 +87,7 @@ export default function HelpRequestForm({ onSuccess }) {
                 </svg>
               </div>
             </div>
-            <p className="text-xl font-semibold mb-2" style={{ color: 'var(--cream-800)' }}>🔍 Finding tutors...</p>
+            <p className="text-xl font-semibold mb-2" style={{ color: 'var(--cream-800)' }}> Finding tutors...</p>
             <p style={{ color: 'var(--cream-700)' }}>Checking qualified tutors in your course</p>
             <div className="mt-4 flex justify-center gap-2">
               <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: 'var(--coral-600)' }}></div>
@@ -106,9 +106,8 @@ export default function HelpRequestForm({ onSuccess }) {
                 </svg>
               </div>
               <h3 className="text-2xl font-bold mb-2" style={{ color: 'var(--coral-600)' }}>
-                ✅ Found {matches.length} matching tutors!
+                 Found {matches.length} matching tutors!
               </h3>
-              <p style={{ color: 'var(--cream-700)' }}>📤 Notifications sent to all tutors</p>
             </div>
 
             {matches.length > 0 ? (
@@ -221,7 +220,7 @@ export default function HelpRequestForm({ onSuccess }) {
         className="w-full py-3 rounded-lg disabled:opacity-50 font-semibold transition text-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-coral-500 focus-visible:ring-offset-2"
         style={{ background: 'var(--gradient-primary)', color: 'white' }}
       >
-        {loading ? 'Submitting...' : '🔍 Find Tutors Now'}
+        {loading ? 'Submitting...' : ' Find Tutors Now'}
       </button>
     </form>
   );

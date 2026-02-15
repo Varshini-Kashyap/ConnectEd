@@ -47,8 +47,10 @@ export const notificationsAPI = {
 export const studentAPI = {
   getTutors: (filters) => api.get('/tutors', { params: filters }),
   createHelpRequest: (data) => api.post('/help-requests', data),
-  getHelpRequests: (status) => api.get('/help-requests', { params: { status } }),
+  getHelpRequests: (status) => api.get('/help-requests', { params: status ? { status } : {} }),
+  getRequestMatches: (requestId) => api.get(`/help-requests/${requestId}/matches`),
   matchRequest: (requestId) => api.post(`/help-requests/${requestId}/match`),
+  deleteHelpRequest: (requestId) => api.delete(`/help-requests/${requestId}`),
   getCourses: () => api.get('/courses'),
 };
 
@@ -67,6 +69,7 @@ export const messageAPI = {
   getAcceptedConnections: () => api.get('/connections/accepted'),
   sendMessage: (data) => api.post('/messages', data),
   getMessages: (connectionId) => api.get(`/messages/${connectionId}`),
+  getUnreadCount: () => api.get('/messages/unread-count'),
 };
 
 export default api;

@@ -2,6 +2,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { useAuthStore } from './stores/authStore';
 import { useChatStore } from './stores/chatStore';
 import ThemeSync from './components/ThemeSync';
+import ToastContainer from './components/Toast';
+import ErrorBoundary from './components/ErrorBoundary';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Questionnaire from './pages/Questionnaire';
@@ -9,7 +11,6 @@ import StreamSelector from './components/StreamSelector';
 import Career from './pages/Career';
 import Student from './pages/Student';
 import Profile from './pages/Profile';
-import RequestsPage from './pages/RequestsPage';
 import MessagesPage from './pages/MessagesPage';
 import ChatPopup from './components/ChatPopup';
 import MessagingButton from './components/MessagingButton';
@@ -30,11 +31,12 @@ function ProtectedRoute({ children }) {
 }
 
 function App() {
-  const { openChats, closeChat, minimizeChat, showChatList, showChatWindow } = useChatStore();
+  const { openChats, closeChat, minimizeChat, showChatList, selectConnectionInChat } = useChatStore();
   
   return (
     <Router>
       <ThemeSync />
+      <ErrorBoundary>
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
@@ -72,14 +74,6 @@ function App() {
           }
         />
         <Route
-          path="/requests"
-          element={
-            <ProtectedRoute>
-              <RequestsPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
           path="/messages"
           element={
             <ProtectedRoute>
@@ -97,13 +91,23 @@ function App() {
         />
         <Route path="/" element={<Navigate to="/login" />} />
       </Routes>
+      </ErrorBoundary>
+      <ToastContainer />
       
       {/* Floating Messaging Button */}
       <MessagingButton />
       
-      {/* Chat Popups - Fixed positioning, won't affect page layout */}
+      {/* Chat Popups – full-screen on mobile, bottom-right on sm+ */}
       {openChats.map((chat, index) => (
-        <div key={chat.connection.id} style={{ position: 'fixed', bottom: 0, right: `${16 + (index * 400)}px`, zIndex: 1000 }}>
+        <div
+          key={chat.connection.id}
+          className={`fixed z-[1000] bottom-0 ${
+            index === 0
+              ? 'inset-x-0 top-0 h-full sm:inset-x-auto sm:top-auto sm:right-4 sm:w-[380px] sm:h-[520px] sm:left-auto'
+              : 'hidden sm:block'
+          }`}
+          style={index > 0 ? { right: 16 + index * 400 } : {}}
+        >
           <ChatPopup
             connection={chat.connection}
             isMinimized={chat.isMinimized}
@@ -111,7 +115,7 @@ function App() {
             onClose={() => closeChat(chat.connection.id)}
             onMinimize={() => minimizeChat(chat.connection.id)}
             onShowList={() => showChatList(chat.connection.id)}
-            onSelectChat={(conn) => showChatWindow(chat.connection.id)}
+            onSelectChat={(conn) => selectConnectionInChat(chat.connection.id, conn)}
           />
         </div>
       ))}

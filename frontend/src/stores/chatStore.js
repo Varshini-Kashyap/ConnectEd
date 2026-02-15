@@ -39,7 +39,14 @@ export const useChatStore = create((set) => ({
       c.connection.id === connectionId ? { ...c, showList: false } : c
     )
   })),
-  
+
+  /** When in list view, switch this popup to show the selected connection. */
+  selectConnectionInChat: (currentConnectionId, newConnection) => set((state) => ({
+    openChats: state.openChats.map(c =>
+      c.connection.id === currentConnectionId ? { ...c, connection: newConnection, showList: false } : c
+    )
+  })),
+
   // Clear all chats (call on logout)
   clearAllChats: () => set({ openChats: [] }),
 }));

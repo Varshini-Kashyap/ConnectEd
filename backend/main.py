@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException, Query, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from typing import List, Optional
 import models, schemas
 from database import get_db, engine
@@ -11,22 +12,23 @@ from ai_service import (
     explain_match,
     search_alumni_strict,
     search_alumni_closest_match,
-    search_alumni_three_step,
-    search_students_natural_language,
+    search_students_keyword_only,
+    _query_to_keywords,
 )
 from matching import compute_career_match, compute_tutor_match
 from resume_service import parse_resume, encode_file_to_base64
 
 
 def _student_alum_dicts(student, alum):
-    """Build dicts for compute_career_match and explain_match."""
+    """Build dicts for compute_career_match and explain_match. Resume from profile_data or user.resume_parsed_text."""
     sp = student.profile_data or {}
     ap = alum.profile_data or {}
+    resume_text = sp.get("resume_text", "") or getattr(student, "resume_parsed_text", None) or ""
     student_dict = {
         "major": student.major,
         "year": student.year,
         "company_wishlist": sp.get("target_companies", []),
-        "resume_text": sp.get("resume_text", ""),
+        "resume_text": resume_text,
     }
     alum_dict = {
         "major": alum.major,
@@ -225,19 +227,20 @@ def get_alumni(
             alum_dict["match_score"] = 50
         
         result.append(alum_dict)
-    
-    # When q is provided: extract intent (Claude) → search by keywords + semantic → rank → top results
-    if q and q.strip():
-        alumni_for_search = [
-            {"id": r["id"], "name": r["name"], "company": r["company"], "job_title": r["job_title"], "major": r["major"], "bio": r["bio"]}
-            for r in result
-        ]
-        search_result = search_alumni_three_step(q.strip(), alumni_for_search, top_n=15)
-        id_to_full = {r["id"]: r for r in result}
-        result = [id_to_full[s["id"]] for s in search_result if s["id"] in id_to_full]
-    else:
-        result = sorted(result, key=lambda x: x.get("match_score", 0), reverse=True)
 
+    # Optional keyword filter when q provided (no LLM); then always sort by match_score descending
+    if q and q.strip():
+        keywords = _query_to_keywords(q.strip())
+        if keywords:
+            combined = lambda r: " ".join([
+                str(r.get("name") or ""),
+                str(r.get("company") or ""),
+                str(r.get("job_title") or ""),
+                str(r.get("major") or ""),
+                str(r.get("bio") or ""),
+            ]).lower()
+            result = [r for r in result if any(kw.lower() in combined(r) for kw in keywords)]
+    result = sorted(result, key=lambda x: x.get("match_score", 0), reverse=True)
     return result
 
 @app.get("/api/alumni/{alumni_id}")
@@ -368,7 +371,7 @@ def decline_connection(
 
 @app.get("/api/notifications")
 def get_notifications(user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Connection requests (pending where current user is target) and other notifications."""
+    """Connection requests (pending where current user is target) and new-message notifications."""
     pending = db.query(models.Connection).filter(
         models.Connection.target_id == user_id,
         models.Connection.status == 'pending'
@@ -376,14 +379,84 @@ def get_notifications(user_id: str = Depends(get_current_user), db: Session = De
     connection_requests = []
     for c in pending:
         requester = db.query(models.User).filter(models.User.id == c.requester_id).first()
+        if not requester:
+            continue
         connection_requests.append({
             "id": c.id,
             "type": "connection_request",
-            "requester": {"id": requester.id, "name": requester.name, "avatar_url": requester.avatar_url} if requester else None,
+            "requester": {
+                "id": requester.id,
+                "name": requester.name,
+                "email": requester.email,
+                "role": requester.role,
+                "avatar_url": requester.avatar_url,
+                "company": requester.company,
+                "job_title": requester.job_title,
+                "major": requester.major,
+                "year": requester.year,
+            },
             "message": c.message,
             "created_at": c.created_at.isoformat() if c.created_at else None,
         })
-    return {"connection_requests": connection_requests, "message_requests": []}
+
+    message_notifs = db.query(models.Notification).filter(
+        models.Notification.user_id == user_id,
+        models.Notification.type == "new_message"
+    ).order_by(models.Notification.created_at.desc()).limit(50).all()
+    message_requests = []
+    for n in message_notifs:
+        sender = db.query(models.User).filter(models.User.id == n.sender_id).first()
+        message_requests.append({
+            "id": n.id,
+            "type": "new_message",
+            "preview": n.body or n.title,
+            "title": n.title,
+            "link": n.link,
+            "sender": {"id": sender.id, "name": sender.name, "avatar_url": sender.avatar_url} if sender else None,
+            "created_at": n.created_at.isoformat() if n.created_at else None,
+        })
+    return {"connection_requests": connection_requests, "message_requests": message_requests}
+
+
+def _query_students_by_keywords_sqlite(db: Session, user_id: str, keywords: List[str]) -> List[models.User]:
+    """
+    Student search only: query SQLite for students whose hobbies, areas_of_interest,
+    looking_for, or courses_taken (in profile_data JSON) match any keyword (LIKE / regex-style).
+    """
+    if not keywords:
+        return db.query(models.User).filter(
+            models.User.role == "student",
+            models.User.id != user_id,
+        ).all()
+    like_patterns = ["%" + str(k).strip().lower() + "%" for k in keywords if k and str(k).strip()]
+    if not like_patterns:
+        return db.query(models.User).filter(
+            models.User.role == "student",
+            models.User.id != user_id,
+        ).all()
+
+    # Build: (json hobbies LIKE p0 OR json areas LIKE p0 OR json looking_for LIKE p0 OR json courses_taken LIKE p0) OR (same for p1) OR ...
+    # SQLite json_extract returns text; COALESCE for nulls
+    conditions = []
+    params = {"uid": user_id}
+    for i, pat in enumerate(like_patterns):
+        key = f"p{i}"
+        params[key] = pat
+        conditions.append(
+            f"(LOWER(COALESCE(json_extract(profile_data,'$.hobbies'),'')) LIKE :{key} "
+            f"OR LOWER(COALESCE(json_extract(profile_data,'$.areas_of_interest'),'')) LIKE :{key} "
+            f"OR LOWER(COALESCE(json_extract(profile_data,'$.looking_for'),'')) LIKE :{key} "
+            f"OR LOWER(COALESCE(json_extract(profile_data,'$.courses_taken'),'')) LIKE :{key})"
+        )
+    where_sql = " OR ".join(conditions)
+    stmt = text(
+        "SELECT id FROM users WHERE role = 'student' AND id != :uid AND (" + where_sql + ")"
+    )
+    rows = db.execute(stmt, params).fetchall()
+    ids = [r[0] for r in rows]
+    if not ids:
+        return []
+    return db.query(models.User).filter(models.User.id.in_(ids)).all()
 
 
 # UNIFIED NATURAL-LANGUAGE SEARCH (role-based)
@@ -391,23 +464,53 @@ def get_notifications(user_id: str = Depends(get_current_user), db: Session = De
 def natural_language_search(
     q: Optional[str] = None,
     role: str = Query("student", regex="^(student|alumni)$"),
-    top_n: int = Query(10, ge=1, le=20),
+    top_n: int = Query(10, ge=1, le=100),
     user_id: str = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
-    Step 1: Extract intent & keywords using Claude (role-specific).
-    Step 2: Search DB using extracted keywords + semantic similarity.
-    Step 3: Rank results by relevance.
-    Return: Top N matching profiles (students or alumni based on role).
+    Student: Step 1 Extract intent (Ollama/Groq) → Step 2 Search SQLite by keywords (hobbies, interests, courses) → Step 3 Rank → Top N.
+    Alumni: unchanged (Groq three-step).
     """
+    if role == "student":
+        q_clean = (q or "").strip()
+        # Empty query: return all students (default dashboard view)
+        if not q_clean:
+            users = db.query(models.User).filter(
+                models.User.role == "student",
+                models.User.id != user_id,
+            ).order_by(models.User.name).limit(100).all()
+            students_list = []
+            for u in users:
+                profile = u.profile_data or {}
+                looking_for = profile.get("looking_for", [])
+                looking_for_str = ", ".join(looking_for) if isinstance(looking_for, list) else str(looking_for)
+                courses_taken = profile.get("courses_taken", [])
+                courses_str = ", ".join(courses_taken) if isinstance(courses_taken, list) else str(courses_taken)
+                students_list.append({
+                    "id": u.id,
+                    "name": u.name,
+                    "major": u.major or "",
+                    "year": u.year or "",
+                    "avatar_url": u.avatar_url,
+                    "hobbies": profile.get("hobbies", ""),
+                    "areas_of_interest": profile.get("areas_of_interest", ""),
+                    "looking_for_str": looking_for_str,
+                    "courses_str": courses_str,
+                    "gpa": float(u.gpa) if u.gpa else None,
+                })
+            return students_list
+
     if not q or not q.strip():
         return []
 
     if role == "student":
-        users = db.query(models.User).filter(models.User.role == "student").all()
-        # Exclude current user
-        users = [u for u in users if u.id != user_id]
+        q_clean = q.strip()
+        # Fast path: keyword-only (no LLM). Instant filter + rank by regex match.
+        keywords = _query_to_keywords(q_clean)
+        if not keywords and q_clean:
+            keywords = [q_clean]
+        users = _query_students_by_keywords_sqlite(db, user_id, keywords)
         students_list = []
         for u in users:
             profile = u.profile_data or {}
@@ -427,8 +530,7 @@ def natural_language_search(
                 "courses_str": courses_str,
                 "gpa": float(u.gpa) if u.gpa else None,
             })
-        result = search_students_natural_language(q.strip(), students_list, top_n=top_n)
-        return result
+        return search_students_keyword_only(q_clean, students_list, top_n=top_n)
 
     # role == "alumni"
     alumni = db.query(models.User).filter(models.User.role == "alumni").all()
@@ -515,8 +617,12 @@ def create_help_request(
     return db_request
 
 @app.get("/api/help-requests", response_model=List[schemas.HelpRequestResponse])
-def get_help_requests(status: Optional[str] = None, db: Session = Depends(get_db)):
-    query = db.query(models.HelpRequest)
+def get_help_requests(
+    status: Optional[str] = None,
+    user_id: str = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    query = db.query(models.HelpRequest).filter(models.HelpRequest.student_id == user_id)
     if status:
         query = query.filter(models.HelpRequest.status == status)
     return query.order_by(models.HelpRequest.created_at.desc()).all()
@@ -589,6 +695,60 @@ def match_request(request_id: str, db: Session = Depends(get_db)):
     
     return result
 
+
+@app.get("/api/help-requests/{request_id}/matches")
+def get_request_matches(
+    request_id: str,
+    user_id: str = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Return stored tutor matches for a help request. Only the request owner can view."""
+    help_request = db.query(models.HelpRequest).filter(
+        models.HelpRequest.id == request_id,
+        models.HelpRequest.student_id == user_id,
+    ).first()
+    if not help_request:
+        raise HTTPException(status_code=404, detail="Help request not found")
+    rows = db.query(models.TutorMatch).filter(
+        models.TutorMatch.request_id == request_id
+    ).order_by(models.TutorMatch.match_score.desc()).all()
+    out = []
+    for row in rows:
+        tutor = db.query(models.User).filter(models.User.id == row.tutor_id).first()
+        if not tutor:
+            continue
+        reasons = (row.match_reasons or {}).get("reasons") if isinstance(row.match_reasons, dict) else row.match_reasons
+        if not isinstance(reasons, list):
+            reasons = [str(reasons)] if reasons else []
+        out.append({
+            "tutor_id": tutor.id,
+            "tutor_name": tutor.name,
+            "tutor_gpa": float(tutor.gpa) if tutor.gpa else None,
+            "avatar_url": tutor.avatar_url,
+            "match_score": row.match_score,
+            "match_reasons": reasons,
+        })
+    return out
+
+
+@app.delete("/api/help-requests/{request_id}")
+def delete_help_request(
+    request_id: str,
+    user_id: str = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a help request. Only the request owner can delete. Cascades to tutor_matches."""
+    help_request = db.query(models.HelpRequest).filter(
+        models.HelpRequest.id == request_id,
+        models.HelpRequest.student_id == user_id,
+    ).first()
+    if not help_request:
+        raise HTTPException(status_code=404, detail="Help request not found")
+    db.delete(help_request)
+    db.commit()
+    return {"message": "Help request deleted"}
+
+
 @app.get("/api/courses", response_model=List[schemas.CourseResponse])
 def get_courses(db: Session = Depends(get_db)):
     return db.query(models.Course).all()
@@ -606,20 +766,23 @@ def ai_draft_message(
     if not student or not target:
         raise HTTPException(status_code=404, detail="User not found")
     
-    student_dict = {
+    requester_dict = {
         "name": student.name,
-        "major": student.major,
-        "year": student.year
+        "major": student.major or "",
+        "year": student.year or "",
     }
-    
     target_dict = {
         "name": target.name,
-        "job_title": target.job_title,
-        "company": target.company,
-        "major": target.major
+        "job_title": target.job_title or "",
+        "company": target.company or "",
+        "major": target.major or "",
+        "year": target.year or "",
     }
-    
-    message = draft_outreach_message(student_dict, target_dict, data.target_type)
+    message = draft_outreach_message(
+        requester_dict, target_dict, data.target_type, requester_role=student.role
+    )
+    if len(message) > 300:
+        message = message[:300]
     return {"message": message}
 
 @app.get("/api/ai/match-explanation/{target_id}")
@@ -673,14 +836,15 @@ def send_message(
     user_id: str = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # Verify connection exists and user is part of it
     connection = db.query(models.Connection).filter(models.Connection.id == message.connection_id).first()
     if not connection:
         raise HTTPException(status_code=404, detail="Connection not found")
-    
     if connection.requester_id != user_id and connection.target_id != user_id:
         raise HTTPException(status_code=403, detail="Not authorized")
-    
+
+    recipient_id = connection.target_id if connection.requester_id == user_id else connection.requester_id
+    sender = db.query(models.User).filter(models.User.id == user_id).first()
+
     db_message = models.Message(
         connection_id=message.connection_id,
         sender_id=user_id,
@@ -689,27 +853,59 @@ def send_message(
     db.add(db_message)
     db.commit()
     db.refresh(db_message)
+
+    notif = models.Notification(
+        user_id=recipient_id,
+        type="new_message",
+        title=f"New message from {sender.name if sender else 'Someone'}",
+        body=(message.content[:100] + "…") if len(message.content) > 100 else message.content,
+        link=message.connection_id,
+        sender_id=user_id,
+        read=False,
+    )
+    db.add(notif)
+    db.commit()
     return db_message
 
-@app.get("/api/messages/{connection_id}")
+
+@app.get("/api/messages/unread-count")
+def get_unread_message_count(
+    user_id: str = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Count messages received by current user that are unread."""
+    count = db.query(models.Message).join(
+        models.Connection,
+        models.Message.connection_id == models.Connection.id
+    ).filter(
+        (models.Connection.requester_id == user_id) | (models.Connection.target_id == user_id),
+        models.Message.sender_id != user_id,
+        models.Message.read == False
+    ).count()
+    return {"count": count}
+
+
+@app.get("/api/messages/{connection_id}", response_model=List[schemas.MessageResponse])
 def get_messages(
     connection_id: str,
     user_id: str = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # Verify connection exists and user is part of it
     connection = db.query(models.Connection).filter(models.Connection.id == connection_id).first()
     if not connection:
         raise HTTPException(status_code=404, detail="Connection not found")
-    
     if connection.requester_id != user_id and connection.target_id != user_id:
         raise HTTPException(status_code=403, detail="Not authorized")
-    
+
     messages = db.query(models.Message).filter(
         models.Message.connection_id == connection_id
     ).order_by(models.Message.created_at).all()
-    
-    return messages
+
+    for m in messages:
+        if m.sender_id != user_id and not m.read:
+            m.read = True
+    db.commit()
+    return [schemas.MessageResponse.from_orm(m) for m in messages]
 
 # RESUME UPLOAD ENDPOINT
 @app.post("/api/users/upload-resume")

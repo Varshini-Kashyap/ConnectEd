@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
+import { useToastStore } from '../stores/toastStore';
 import api from '../services/api';
+import ChipSelectWithCustom from '../components/ChipSelectWithCustom';
+import { GMU_COURSES } from '../data/gmuCourses';
+import { TARGET_COMPANIES } from '../data/targetCompanies';
+import { SKILLS_LIST } from '../data/skills';
 
 const MAJORS = ['Computer Science', 'Information Systems', 'Information Technology', 'Software Engineering', 'Cyber Security Engineering', 'Data Science', 'Mathematics', 'Business', 'Engineering'];
-const COURSES = ['CS 112', 'CS 211', 'CS 310', 'CS 330', 'CS 367', 'CS 450', 'CS 465', 'CS 471', 'CS 483', 'MATH 113', 'MATH 114', 'MATH 213', 'MATH 125', 'STAT 344'];
-const COMPANIES = ['Google', 'Amazon', 'Meta', 'Microsoft', 'Apple', 'Startups', 'Finance', 'Healthcare', 'Government', 'Consulting'];
-const SKILLS = ['Python', 'Java', 'C++', 'JavaScript', 'SQL', 'React', 'Django', 'Spring', 'Node.js', 'Git', 'Docker', 'AWS'];
 const LOOKING_FOR = ['Career mentorship from alumni', 'Resume and interview help', 'Study partners for specific courses', 'Tutoring (I need help)', 'Tutoring (I can help others)', 'Project collaboration partners', 'Hobby and activity partners'];
 
 export default function StudentQuestionnaire() {
@@ -46,7 +48,8 @@ export default function StudentQuestionnaire() {
       navigate('/stream-selector');
     } catch (error) {
       console.error('Profile save error:', error.response?.data || error.message);
-      alert('Failed to save profile: ' + (error.response?.data?.detail || error.message));
+      const msg = error.response?.data?.detail || error.message;
+      useToastStore.getState().error('Failed to save profile: ' + (typeof msg === 'string' ? msg : 'Please try again.'));
     }
   };
 
@@ -140,23 +143,18 @@ export default function StudentQuestionnaire() {
                 </select>
               </div>
 
-              <div>
-                <label className={labelClass} style={{ color: 'var(--cream-900)' }}>Courses you&apos;ve taken *</label>
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {COURSES.map(course => (
-                    <button
-                      key={course}
-                      type="button"
-                      onClick={() => setFormData({ ...formData, courses_taken: toggleArrayItem(formData.courses_taken, course) })}
-                      className={`${chipBase} ${formData.courses_taken.includes(course) ? chipSelected : chipUnselected}`}
-                      style={formData.courses_taken.includes(course) ? {} : { color: 'var(--cream-800)' }}
-                    >
-                      {course}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-xs mt-1" style={{ color: 'var(--cream-700)' }}>Select all courses you&apos;ve taken or are currently taking</p>
-              </div>
+              <ChipSelectWithCustom
+                label="Courses you've taken *"
+                options={GMU_COURSES}
+                value={formData.courses_taken}
+                onChange={(courses_taken) => setFormData({ ...formData, courses_taken })}
+                searchPlaceholder="Search courses (e.g. CS 310, MATH 125)..."
+                addPlaceholder="Add course not listed (e.g. CS 499)"
+                helpText="Select all courses you've taken or are currently taking. You can add custom course codes if not in the list."
+                chipBase={chipBase}
+                chipSelected={chipSelected}
+                chipUnselected={chipUnselected}
+              />
 
               <button
                 onClick={() => setStep(2)}
@@ -188,22 +186,18 @@ export default function StudentQuestionnaire() {
                 <p className="text-xs mt-1" style={{ color: 'var(--cream-700)' }}>{formData.career_goals.length}/500 characters</p>
               </div>
 
-              <div>
-                <label className={labelClass} style={{ color: 'var(--cream-900)' }}>Target companies or industries</label>
-                <div className="flex flex-wrap gap-2">
-                  {COMPANIES.map(company => (
-                    <button
-                      key={company}
-                      type="button"
-                      onClick={() => setFormData({ ...formData, target_companies: toggleArrayItem(formData.target_companies, company) })}
-                      className={`${chipBase} ${formData.target_companies.includes(company) ? chipSelected : chipUnselected}`}
-                      style={formData.target_companies.includes(company) ? {} : { color: 'var(--cream-800)' }}
-                    >
-                      {company}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <ChipSelectWithCustom
+                label="Target companies or industries"
+                options={TARGET_COMPANIES}
+                value={formData.target_companies}
+                onChange={(target_companies) => setFormData({ ...formData, target_companies })}
+                searchPlaceholder="Search companies (e.g. Google, Consulting)..."
+                addPlaceholder="Add company or industry not listed"
+                helpText="Select companies or industries you're interested in. Add your own if not in the list."
+                chipBase={chipBase}
+                chipSelected={chipSelected}
+                chipUnselected={chipUnselected}
+              />
 
               <div>
                 <label className={labelClass} style={{ color: 'var(--cream-900)' }}>Areas of interest *</label>
@@ -251,22 +245,18 @@ export default function StudentQuestionnaire() {
                 <p className="text-xs mt-1" style={{ color: 'var(--cream-700)' }}>Accepted: PDF, DOCX, TXT</p>
               </div>
 
-              <div>
-                <label className={labelClass} style={{ color: 'var(--cream-900)' }}>Skills & technologies</label>
-                <div className="flex flex-wrap gap-2">
-                  {SKILLS.map(skill => (
-                    <button
-                      key={skill}
-                      type="button"
-                      onClick={() => setFormData({ ...formData, skills: toggleArrayItem(formData.skills, skill) })}
-                      className={`${chipBase} ${formData.skills.includes(skill) ? chipSelected : chipUnselected}`}
-                      style={formData.skills.includes(skill) ? {} : { color: 'var(--cream-800)' }}
-                    >
-                      {skill}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <ChipSelectWithCustom
+                label="Skills & technologies"
+                options={SKILLS_LIST}
+                value={formData.skills}
+                onChange={(skills) => setFormData({ ...formData, skills })}
+                searchPlaceholder="Search skills (e.g. Python, React, AWS)..."
+                addPlaceholder="Add skill not listed"
+                helpText="Select skills and technologies you know. Add your own if not in the list."
+                chipBase={chipBase}
+                chipSelected={chipSelected}
+                chipUnselected={chipUnselected}
+              />
 
               <div>
                 <label className={labelClass} style={{ color: 'var(--cream-900)' }}>Hobbies and interests outside academics *</label>

@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import NavBar from './NavBar';
+import AppFooter from './AppFooter';
 
 /** Heart icon for Valentine’s “Connect with heart” accent */
 function HeartIcon({ className = '' }) {
@@ -21,10 +22,10 @@ export default function StreamSelector() {
   const firstName = user?.name?.split(' ')[0] || 'there';
 
   return (
-    <div className="min-h-screen" style={{ background: 'var(--cream-100)' }}>
+    <div className="min-h-screen flex flex-col" style={{ background: 'var(--cream-100)' }}>
       <NavBar />
 
-      <main className="max-w-4xl mx-auto px-4 py-10 sm:py-14">
+      <main className="max-w-4xl mx-auto px-4 py-10 sm:py-14 flex-1 w-full">
         {/* Welcome */}
         <header className="text-center mb-10 sm:mb-14">
           <h1 className="font-dm-sans text-3xl sm:text-4xl font-bold mb-2" style={{ color: 'var(--cream-900)' }}>
@@ -129,11 +130,11 @@ export default function StreamSelector() {
               <ul className="space-y-2 mb-6">
                 <li className={listItemClasses} style={{ color: 'var(--cream-800)' }}>
                   <svg className={listIconClasses} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                  Find tutors by course
+                  One search — tutors, study buddies, partners
                 </li>
                 <li className={listItemClasses} style={{ color: 'var(--cream-800)' }}>
                   <svg className={listIconClasses} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                  AI-matched tutor recommendations
+                  Top 10 matches for what you type
                 </li>
                 <li className={listItemClasses} style={{ color: 'var(--cream-800)' }}>
                   <svg className={listIconClasses} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
@@ -147,7 +148,7 @@ export default function StreamSelector() {
                   boxShadow: '0 1px 3px 0 rgba(61, 50, 41, 0.1)',
                 }}
               >
-                Find a tutor
+                Search students
                 <HeartIcon className="w-4 h-4 opacity-90" />
               </span>
             </article>
@@ -159,6 +160,7 @@ export default function StreamSelector() {
           Made with <HeartIcon className="w-3.5 h-3.5 inline-block text-coral-500 align-middle" /> for Patriots
         </p>
       </main>
+      <AppFooter />
     </div>
   );
 }

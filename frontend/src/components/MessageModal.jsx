@@ -73,33 +73,36 @@ export default function MessageModal({ target, targetType, onClose }) {
       aria-labelledby="message-modal-title"
     >
       <div
-        className="bg-white rounded-lg p-8 max-w-2xl w-full shadow-2xl"
-        style={{ animation: 'messageModalSlideUp 0.3s ease-out' }}
+        className="rounded-2xl p-8 max-w-2xl w-full shadow-2xl"
+        style={{ animation: 'messageModalSlideUp 0.3s ease-out', background: 'var(--cream-50)', border: '1px solid var(--cream-300)' }}
         onClick={(e) => e.stopPropagation()}
         onMouseDown={(e) => e.stopPropagation()}
       >
           {/* Alumni Info Header */}
-          <div className="flex items-center mb-6 pb-4 border-b">
+          <div className="flex items-center mb-6 pb-4 border-b" style={{ borderColor: 'var(--cream-300)' }}>
             <img
               src={target.avatar_url || `https://ui-avatars.com/api/?name=${target.name}`}
               alt={target.name}
-              className="w-16 h-16 rounded-full mr-4"
+              className="w-16 h-16 rounded-full mr-4 border-2 object-cover"
+              style={{ borderColor: 'var(--cream-300)' }}
             />
             <div>
-              <h3 id="message-modal-title" className="text-2xl font-bold text-gmu-green">{target.name}</h3>
-              <p className="text-gray-600">{target.job_title} at {target.company}</p>
-              <p className="text-sm text-gray-500">{target.major} • Class of {target.graduation_year}</p>
+              <h3 id="message-modal-title" className="text-2xl font-bold font-dm-sans" style={{ color: 'var(--coral-600)' }}>{target.name}</h3>
+              <p className="text-sm mt-0.5" style={{ color: 'var(--cream-700)' }}>{target.job_title} at {target.company}</p>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--cream-600)' }}>{target.major} · Class of {target.graduation_year}</p>
             </div>
           </div>
 
           {/* Message Section */}
           <div className="mb-6">
             <div className="flex justify-between items-center mb-2">
-              <label className="block text-sm font-semibold text-gray-700">Your Message</label>
+              <label className="block text-sm font-semibold font-dm-sans" style={{ color: 'var(--cream-900)' }}>Your Message</label>
               {!draftLoading && (
                 <button
+                  type="button"
                   onClick={handleDraftMessage}
-                  className="text-sm text-gmu-green hover:underline flex items-center"
+                  className="text-sm font-medium hover:underline flex items-center transition-opacity"
+                  style={{ color: 'var(--coral-600)' }}
                 >
                   ✨ Regenerate with AI
                 </button>
@@ -107,34 +110,38 @@ export default function MessageModal({ target, targetType, onClose }) {
             </div>
 
             {draftLoading ? (
-              <div className="w-full px-4 py-12 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gmu-green mb-3"></div>
-                <p className="text-gray-600">Generating personalized message...</p>
+              <div className="w-full px-4 py-12 border-2 border-dashed rounded-xl flex flex-col items-center justify-center" style={{ borderColor: 'var(--cream-300)', background: 'var(--cream-100)' }}>
+                <div className="animate-spin rounded-full h-8 w-8 border-2 border-t-[var(--coral-600)] mb-3" style={{ borderColor: 'var(--cream-300)' }} />
+                <p className="text-sm" style={{ color: 'var(--cream-700)' }}>Generating personalized message...</p>
               </div>
             ) : (
               <textarea
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 placeholder="Introduce yourself and explain why you'd like to connect..."
-                className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-gmu-green focus:border-transparent transition"
-                rows="8"
+                className="input-theme w-full px-4 py-3 rounded-xl transition focus:outline-none focus:ring-2 focus:ring-[var(--coral-500)]"
+                style={{ minHeight: '10rem' }}
+                rows={6}
+                maxLength={300}
               />
             )}
-            <p className="text-xs text-gray-500 mt-2">
-              Tip: Mention specific interests or questions to increase response rate
+            <p className="text-xs mt-2 flex justify-between" style={{ color: 'var(--cream-600)' }}>
+              <span>Tip: Mention specific interests or questions to increase response rate</span>
+              {!draftLoading && <span>{message.length}/300</span>}
             </p>
           </div>
 
           {/* Action Buttons */}
           <div className="flex gap-4">
             <button
+              type="button"
               onClick={handleSend}
               disabled={loading || draftLoading || !message.trim()}
-              className="flex-1 bg-gmu-green text-white py-3 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition"
+              className="btn-primary-warm flex-1 py-3 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
-                <span className="flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                <span className="flex items-center justify-center gap-2">
+                  <span className="inline-block w-5 h-5 rounded-full border-2 border-white border-t-transparent animate-spin" />
                   Sending...
                 </span>
               ) : (
@@ -142,9 +149,10 @@ export default function MessageModal({ target, targetType, onClose }) {
               )}
             </button>
             <button
+              type="button"
               onClick={onClose}
               disabled={loading}
-              className="flex-1 bg-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-400 disabled:opacity-50 font-semibold transition"
+              className="btn-secondary-warm flex-1 py-3 rounded-xl disabled:opacity-50"
             >
               Cancel
             </button>
@@ -158,10 +166,11 @@ export default function MessageModal({ target, targetType, onClose }) {
       {createPortal(modalContent, document.body)}
       {toast && createPortal(
         <div
-          className={`fixed top-4 right-4 z-[110] px-6 py-4 rounded-lg shadow-lg ${
-            toast.type === 'success' ? 'bg-green-500' : 'bg-red-500'
-          } text-white font-semibold`}
-          style={{ animation: 'messageModalSlideDown 0.3s ease-out' }}
+          className="fixed top-4 right-4 z-[110] px-6 py-4 rounded-xl shadow-lg text-white font-semibold"
+          style={{
+            animation: 'messageModalSlideDown 0.3s ease-out',
+            background: toast.type === 'success' ? 'var(--coral-600)' : '#dc2626',
+          }}
         >
           {toast.message}
         </div>,

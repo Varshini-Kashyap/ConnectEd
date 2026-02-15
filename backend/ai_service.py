@@ -1,6 +1,8 @@
 from groq import Groq
 import os
 import re
+import urllib.request
+from typing import Optional
 from dotenv import load_dotenv
 import json
 
@@ -8,10 +10,132 @@ load_dotenv()
 
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
+# Ollama: used ONLY for the natural-language partner/student search (Find Partners). All other
+# AI (tutor matching, match explanation, draft message, alumni search) remains Groq — do not change.
+OLLAMA_BASE_URL = (os.getenv("OLLAMA_BASE_URL") or "http://localhost:11434").rstrip("/")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
+OLLAMA_EMBED_MODEL = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
+
 # Model choice: 70b is better quality but uses more tokens (100k TPD on free tier).
 # Use GROQ_MODEL=llama-3.1-8b-instant for 5x token headroom (500k TPD) when hitting rate limits.
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 GROQ_MODEL_FALLBACK = "llama-3.1-8b-instant"  # smaller model, higher rate limits
+
+def _ollama_create(prompt: str, model: str = None) -> Optional[str]:
+    """Call local Ollama (free, unlimited). Returns response text or None if Ollama not running / error."""
+    model = model or OLLAMA_MODEL
+    url = f"{OLLAMA_BASE_URL}/api/chat"
+    body = json.dumps({
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "stream": False,
+    }).encode("utf-8")
+    try:
+        req = urllib.request.Request(url, data=body, method="POST")
+        req.add_header("Content-Type", "application/json")
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            data = json.loads(resp.read().decode())
+            msg = data.get("message") or {}
+            return (msg.get("content") or "").strip() or None
+    except Exception as e:
+        print(f"Ollama API error: {e}")
+        return None
+
+
+def _ollama_embed(text: str, model: str = None) -> Optional[list]:
+    """Get embedding vector for one string via Ollama /api/embed. Student search only. Returns list of floats or None."""
+    if not text or not str(text).strip():
+        return None
+    model = model or OLLAMA_EMBED_MODEL
+    url = f"{OLLAMA_BASE_URL}/api/embed"
+    body = json.dumps({"model": model, "input": text.strip()}).encode("utf-8")
+    try:
+        req = urllib.request.Request(url, data=body, method="POST")
+        req.add_header("Content-Type", "application/json")
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = json.loads(resp.read().decode())
+            embs = data.get("embeddings")
+            if embs and len(embs) > 0:
+                return embs[0]
+        return None
+    except Exception as e:
+        print(f"Ollama embed error: {e}")
+        return None
+
+
+def _ollama_embed_batch(texts: list, model: str = None) -> Optional[list]:
+    """Get embeddings for multiple strings in one call. Returns list of vectors or None."""
+    if not texts:
+        return []
+    model = model or OLLAMA_EMBED_MODEL
+    url = f"{OLLAMA_BASE_URL}/api/embed"
+    inputs = [str(t).strip() if t else "" for t in texts]
+    inputs = [s or " " for s in inputs]
+    body = json.dumps({"model": model, "input": inputs}).encode("utf-8")
+    try:
+        req = urllib.request.Request(url, data=body, method="POST")
+        req.add_header("Content-Type", "application/json")
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            data = json.loads(resp.read().decode())
+            return data.get("embeddings")
+    except Exception as e:
+        print(f"Ollama embed batch error: {e}")
+        return None
+
+
+def _cosine_similarity(a: list, b: list) -> float:
+    """Cosine similarity for L2-normalized vectors (Ollama returns normalized)."""
+    if not a or not b or len(a) != len(b):
+        return 0.0
+    return sum(x * y for x, y in zip(a, b))
+
+
+def _student_profile_searchable_text(s: dict) -> str:
+    """Build one searchable text from DB-backed student columns for semantic match."""
+    parts = [
+        str(s.get("hobbies") or ""),
+        str(s.get("areas_of_interest") or ""),
+        str(s.get("looking_for_str") or ""),
+        str(s.get("courses_str") or ""),
+        str(s.get("major") or ""),
+        str(s.get("year") or ""),
+    ]
+    return " ".join(p for p in parts if p).strip() or " "
+
+
+def search_students_semantic(query: str, students_list: list, top_n: int = 10) -> Optional[list]:
+    """
+    Student search only: rank by semantic similarity (Ollama embeddings) over DB-backed columns.
+    Fetches students from DB in main.py; this receives that list and ranks by embedding similarity.
+    Returns list of student dicts in relevance order, or None if Ollama embed unavailable (caller can fall back).
+    """
+    if not query or not query.strip() or not students_list:
+        return students_list[:top_n] if students_list else []
+    q_clean = query.strip()
+    query_emb = _ollama_embed(q_clean)
+    if not query_emb:
+        return None
+    profile_texts = [_student_profile_searchable_text(s) for s in students_list]
+    profile_embs = _ollama_embed_batch(profile_texts)
+    if not profile_embs or len(profile_embs) != len(students_list):
+        return None
+    scored = [(students_list[i], _cosine_similarity(query_emb, profile_embs[i])) for i in range(len(students_list))]
+    scored.sort(key=lambda x: x[1], reverse=True)
+    return [s for s, _ in scored[:top_n]]
+
+
+def _student_search_llm(prompt: str) -> Optional[str]:
+    """Only for partner/student search. Ollama first, then Groq fallback. All other features stay on Groq."""
+    text = _ollama_create(prompt)
+    if text:
+        return text
+    try:
+        r = _groq_create(GROQ_MODEL, [{"role": "user", "content": prompt}], temperature=0.1, max_tokens=512)
+        if r and r.choices:
+            return (r.choices[0].message.content or "").strip() or None
+    except Exception as e:
+        print(f"Groq fallback error: {e}")
+    return None
 
 
 def _is_rate_limit(err):
@@ -103,33 +227,44 @@ Sort by match_score descending. Return only the JSON, no other text."""
             for t in tutors_info
         ]
 
-def draft_outreach_message(student, target, target_type):
-    """Generate personalized outreach message using AI"""
-    prompt = f"""Generate a professional, friendly outreach message from a GMU student to a {target_type}.
+def draft_outreach_message(requester, target, target_type, requester_role="student"):
+    """Generate personalized outreach message using AI. Max 300 characters.
+    Student→student: focus on common interests and coursework.
+    Alumni↔student or alumni→alumni: focus on career and company."""
+    max_len = 300
+    requester_name = requester.get("name", "I")
+    target_name = target.get("name", "you")
+    is_student_to_student = (requester_role == "student" and target_type == "student")
 
-Student: {student['name']}, {student.get('major', 'GMU student')}, {student.get('year', '')}
-Target: {target['name']}, {target.get('job_title', '')} at {target.get('company', 'GMU')}
+    if is_student_to_student:
+        prompt = f"""Write a short, friendly connection message from one GMU student to another. Focus on COMMON INTERESTS and COURSEWORK (e.g. same major, courses, study groups, clubs). Keep it casual and peer-to-peer.
 
-Write a 3-4 sentence message that:
-1. Introduces the student briefly
-2. Mentions a specific connection point (major, company, etc.)
-3. States clear purpose (career advice, tutoring help, etc.)
-4. Ends with a polite call to action
+Requester: {requester_name}, {requester.get('major', '')} {requester.get('year', '')}
+Target: {target_name}, {target.get('major', '')} {target.get('year', '')}
 
-Return only the message text, no subject line or extra formatting."""
-    
-    fallback = f"Hi {target['name']}, I'm {student['name']}, a {student.get('year', '')} {student.get('major', '')} student at GMU. I'd love to connect and learn from your experience. Would you be open to a brief conversation?"
+Rules: Maximum 300 characters. No subject line. One short paragraph. End with a simple call to action (e.g. want to connect?). Return only the message text."""
+        fallback = f"Hi {target_name}, I'm {requester_name}. We're both in {requester.get('major', 'GMU')} — would love to connect and maybe study or share notes!"
+    else:
+        prompt = f"""Write a short, professional connection message. Focus on CAREER and COMPANY (e.g. their role, company, industry, or mentorship). Polite and concise.
+
+Requester: {requester_name}, {requester.get('major', '')} {requester.get('year', '')} ({requester_role})
+Target: {target_name}, {target.get('job_title', '')} at {target.get('company', 'GMU')}
+
+Rules: Maximum 300 characters. No subject line. One short paragraph. End with a brief call to action. Return only the message text."""
+        fallback = f"Hi {target_name}, I'm {requester_name}. I'd love to connect and learn about your experience at {target.get('company', 'GMU')}. Would you have time for a quick chat?"
+
     try:
         response = _groq_create(
             GROQ_MODEL,
             [{"role": "user", "content": prompt}],
-            temperature=0.7,
-            max_tokens=256,
+            temperature=0.6,
+            max_tokens=120,
         )
-        return (response.choices[0].message.content or "").strip() or fallback
+        text = (response.choices[0].message.content or "").strip() or fallback
+        return text[:max_len] if len(text) > max_len else text
     except Exception as e:
         print(f"AI draft error: {e}")
-        return fallback
+        return (fallback[:max_len]) if len(fallback) > max_len else fallback
 
 # --- Alumni search: strict (single-word) and closest-match (multi-word) ---
 
@@ -373,6 +508,28 @@ def _regex_score_student(profile: dict, intent: dict, query: str = "") -> float:
     return _regex_keyword_score(text, terms)
 
 
+def search_students_keyword_only(query: str, students_list: list, top_n: int = 10) -> list:
+    """
+    Fast path: no LLM. Extract keywords from query, rank by regex match score only.
+    Use this for the student search bar so results return instantly.
+    """
+    if not students_list:
+        return []
+    q = (query or "").strip()
+    keywords = _query_to_keywords(q)
+    if not keywords and q:
+        keywords = [q]
+    intent = {
+        "hobbies_or_activities": keywords or [],
+        "courses_or_subjects": [],
+        "looking_for_terms": [],
+        "keywords": keywords or [],
+    }
+    scored = [(s, _regex_score_student(s, intent, q)) for s in students_list]
+    scored.sort(key=lambda x: x[1], reverse=True)
+    return [s for s, _ in scored[:top_n]]
+
+
 def _combine_regex_semantic_ranking(
     id_list: list,
     id_to_profile: dict,
@@ -470,9 +627,9 @@ Return ONLY the JSON object, no other text."""
         return {"companies": [], "job_titles_or_roles": [], "majors": [], "keywords": []}
 
 
-def extract_search_intent_student(query: str) -> dict:
-    """Extract intent for student/partner search: hobbies, activities, courses, looking_for, keywords."""
-    prompt = f"""You are a search intent extractor for a university STUDENT directory. Students search for study partners, activity partners (e.g. swimming, gym), or people with similar interests. The user typed a natural-language search. Extract structured filters and keywords.
+def _student_intent_prompt(query: str) -> str:
+    """Shared prompt for student search intent (Ollama or Groq)."""
+    return f"""You are a search intent extractor for a university STUDENT directory. Students search for study partners, activity partners (e.g. swimming, gym), or people with similar interests. The user typed a natural-language search. Extract structured filters and keywords.
 
 User query: "{query}"
 
@@ -494,15 +651,15 @@ Rules:
 
 Return ONLY the JSON object, no other text."""
 
+
+def extract_search_intent_student(query: str) -> dict:
+    """Extract intent for student/partner search. Uses Ollama first, then Groq fallback."""
+    prompt = _student_intent_prompt(query.strip())
+    text = _student_search_llm(prompt)
+    if not text:
+        return {"hobbies_or_activities": [], "courses_or_subjects": [], "looking_for_terms": [], "keywords": []}
     try:
-        response = _groq_create(
-            GROQ_MODEL,
-            [{"role": "user", "content": prompt}],
-            temperature=0.1,
-            max_tokens=512,
-        )
-        text = _strip_json_text(response.choices[0].message.content)
-        out = json.loads(text)
+        out = json.loads(_strip_json_text(text))
         return {
             "hobbies_or_activities": out.get("hobbies_or_activities") or [],
             "courses_or_subjects": out.get("courses_or_subjects") or [],
@@ -667,16 +824,29 @@ def search_alumni_three_step(query: str, alumni_list: list, top_n: int = TOP_ALU
     return [id_to_alum[aid] for aid in combined_ids if aid in id_to_alum]
 
 
+def _rank_students_prompt(query: str, intent: dict, summaries: list, top_n: int) -> str:
+    """Shared prompt for ranking students (Ollama or Groq)."""
+    return f"""You are a relevance ranker for a university STUDENT directory (finding study partners, activity partners, etc.). The user searched: "{query}"
+
+Extracted intent: hobbies/activities={intent.get('hobbies_or_activities')}, courses={intent.get('courses_or_subjects')}, looking_for={intent.get('looking_for_terms')}, keywords={intent.get('keywords')}
+
+Student profiles (already pre-filtered; now rank by relevance):
+{json.dumps(summaries, indent=2)}
+
+Task: Rank these profiles by relevance to the user's search (best match first). Return exactly the top {top_n} profile ids in order of relevance. If there are fewer than {top_n}, return all in ranked order.
+
+Return ONLY a JSON array of ids, e.g. ["id1", "id2", "id3"]. No other text."""
+
+
 def rank_students_by_relevance(query: str, intent: dict, students_list: list, top_n: int = TOP_STUDENT_SEARCH_RESULTS) -> list:
     """
-    Step 3 (students): Rank filtered students by relevance to the query and intent.
+    Step 3 (students): Rank filtered students by relevance. Uses Ollama first, then Groq.
     Returns list of student ids in order of relevance (best first), max top_n.
     """
     if not students_list:
         return []
     if len(students_list) <= top_n and not intent.get("keywords"):
         return [s["id"] for s in students_list]
-
     summaries = []
     for s in students_list:
         summaries.append({
@@ -688,27 +858,11 @@ def rank_students_by_relevance(query: str, intent: dict, students_list: list, to
             "areas_of_interest": (s.get("areas_of_interest") or "")[:200],
             "looking_for": (s.get("looking_for_str") or "")[:200],
         })
-
-    prompt = f"""You are a relevance ranker for a university STUDENT directory (finding study partners, activity partners, etc.). The user searched: "{query}"
-
-Extracted intent: hobbies/activities={intent.get('hobbies_or_activities')}, courses={intent.get('courses_or_subjects')}, looking_for={intent.get('looking_for_terms')}, keywords={intent.get('keywords')}
-
-Student profiles (already pre-filtered; now rank by relevance):
-{json.dumps(summaries, indent=2)}
-
-Task: Rank these profiles by relevance to the user's search (best match first). Return exactly the top {top_n} profile ids in order of relevance. If there are fewer than {top_n}, return all in ranked order.
-
-Return ONLY a JSON array of ids, e.g. ["id1", "id2", "id3"]. No other text."""
-
+    text = _student_search_llm(_rank_students_prompt(query, intent, summaries, top_n))
+    if not text:
+        return [s["id"] for s in students_list][:top_n]
     try:
-        response = _groq_create(
-            GROQ_MODEL,
-            [{"role": "user", "content": prompt}],
-            temperature=0.2,
-            max_tokens=512,
-        )
-        text = _strip_json_text(response.choices[0].message.content)
-        ids = json.loads(text)
+        ids = json.loads(_strip_json_text(text))
         if not isinstance(ids, list):
             ids = [ids] if ids else []
         id_set = {s["id"] for s in students_list}
@@ -724,7 +878,7 @@ Return ONLY a JSON array of ids, e.g. ["id1", "id2", "id3"]. No other text."""
 
 def search_students_natural_language(query: str, students_list: list, top_n: int = TOP_STUDENT_SEARCH_RESULTS) -> list:
     """
-    Full pipeline for students: Extract intent (Claude) → Filter by hobbies/courses/looking_for → Rank by relevance.
+    Full pipeline for students: Extract intent (Ollama/Groq) → Filter by hobbies/courses/looking_for → Rank by relevance.
     Returns list of student dicts in relevance order, max top_n. Use for "I need a swimming partner" style queries.
     """
     if not query or not query.strip():

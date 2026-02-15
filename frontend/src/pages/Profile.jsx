@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useAuthStore } from '../stores/authStore';
+import { useToastStore } from '../stores/toastStore';
 import NavBar from '../components/NavBar';
+import AppFooter from '../components/AppFooter';
 import api from '../services/api';
 
 export default function Profile() {
@@ -21,17 +23,17 @@ export default function Profile() {
       const updatedUser = { ...user, ...response.data, profile_data: formData };
       setUser(updatedUser);
       setIsEditing(false);
-      alert('Profile updated successfully!');
+      useToastStore.getState().success('Profile updated successfully!');
     } catch (error) {
-      alert('Failed to update profile');
+      useToastStore.getState().error('Failed to update profile. Try again.');
     }
     setLoading(false);
   };
 
   return (
-    <div className="min-h-screen" style={{ background: 'var(--cream-50)' }}>
+    <div className="min-h-screen flex flex-col" style={{ background: 'var(--cream-50)' }}>
       <NavBar />
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-8 flex-1">
         <div className="max-w-4xl mx-auto">
           <div className="rounded-xl border p-8 mb-6" style={{ background: 'var(--cream-50)', borderColor: 'var(--cream-300)', boxShadow: 'var(--shadow-warm)' }}>
             <div className="flex items-start justify-between">
@@ -213,7 +215,9 @@ export default function Profile() {
               /* Edit Mode */
               <div className="space-y-6">
                 <h2 className="text-2xl font-bold mb-4" style={{ color: 'var(--cream-900)' }}>Edit Profile</h2>
-                
+                <p className="text-sm mb-4" style={{ color: 'var(--cream-700)' }} aria-label="Form sections">
+                  {isStudent ? 'Sections: Basic info · Career & goals' : 'Sections: Basic info · Career & details · Availability'}
+                </p>
                 {isStudent ? (
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
@@ -508,6 +512,7 @@ export default function Profile() {
           </div>
         </div>
       </div>
+      <AppFooter />
     </div>
   );
 }

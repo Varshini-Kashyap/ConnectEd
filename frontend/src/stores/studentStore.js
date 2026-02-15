@@ -30,7 +30,7 @@ export const useStudentStore = create((set) => ({
     }
   },
 
-  fetchRequests: async (status = 'open') => {
+  fetchRequests: async (status) => {
     set({ loading: true, error: null });
     try {
       const response = await studentAPI.getHelpRequests(status);
@@ -49,6 +49,27 @@ export const useStudentStore = create((set) => ({
     } catch (error) {
       set({ error: error.response?.data?.detail || 'Failed to match request' });
       return [];
+    }
+  },
+
+  getRequestMatches: async (requestId) => {
+    try {
+      const response = await studentAPI.getRequestMatches(requestId);
+      return response.data;
+    } catch (error) {
+      set({ error: error.response?.data?.detail || 'Failed to fetch matches' });
+      return [];
+    }
+  },
+
+  deleteRequest: async (requestId) => {
+    set({ error: null });
+    try {
+      await studentAPI.deleteHelpRequest(requestId);
+      return true;
+    } catch (error) {
+      set({ error: error.response?.data?.detail || 'Failed to delete request' });
+      return false;
     }
   },
 

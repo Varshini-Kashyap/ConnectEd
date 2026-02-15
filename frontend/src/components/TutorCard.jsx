@@ -15,10 +15,12 @@ export default function TutorCard({ tutor, matchScore, matchReasons, showMatchSc
       <div className="relative h-20" style={{ background: 'var(--gradient-primary)' }}>
         {showMatchScore && matchScore !== undefined && (
           <div
-            className="absolute top-4 right-4 px-3 py-1 rounded-full text-sm font-bold"
+            className="absolute top-3 right-4 inline-flex items-baseline gap-0.5 px-4 py-2 rounded-full border-2 border-white/40 shadow-md"
             style={{ background: 'var(--coral-600)', color: 'white' }}
           >
-            {matchScore}% Match
+            <span className="font-dm-sans text-xl font-bold tabular-nums">{matchScore}</span>
+            <span className="text-sm font-semibold opacity-95">%</span>
+            <span className="text-xs font-medium ml-1 opacity-90">match</span>
           </div>
         )}
         <div

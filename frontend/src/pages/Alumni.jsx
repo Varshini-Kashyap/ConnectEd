@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useToastStore } from '../stores/toastStore';
 import { usersAPI, connectionsAPI } from '../services/api';
 
 export default function Alumni({ user }) {
@@ -24,17 +25,17 @@ export default function Alumni({ user }) {
 
   const handleConnect = async (alumniId) => {
     if (!user) {
-      alert('Please login to connect with alumni');
+      useToastStore.getState().error('Please login to connect with alumni');
       return;
     }
     
     try {
       await connectionsAPI.create({ target_id: alumniId, message }, user.id);
-      alert('Connection request sent!');
+      useToastStore.getState().success('Connection request sent!');
       setSelectedAlumni(null);
       setMessage('');
     } catch (error) {
-      alert('Failed to send connection request');
+      useToastStore.getState().error('Failed to send connection request');
     }
   };
 

@@ -130,6 +130,21 @@ class Message(Base):
     read = Column(Boolean, default=False)
 
 
+class Notification(Base):
+    """In-app notifications (e.g. new message). Connection requests stay in Connection model."""
+    __tablename__ = "notifications"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    type = Column(String, nullable=False)  # 'new_message'
+    title = Column(String, nullable=False)
+    body = Column(Text)
+    link = Column(String)  # connection_id for opening chat
+    sender_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"))
+    read = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class CareerMatchCache(Base):
     """Cache (student_id, alumni_id) -> match_score and reasons so we don't recompute on every page load."""
     __tablename__ = "career_match_cache"

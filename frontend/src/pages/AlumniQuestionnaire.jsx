@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
+import { useToastStore } from '../stores/toastStore';
 import api from '../services/api';
 
 const MAJORS = ['Computer Science', 'Information Systems', 'Information Technology', 'Software Engineering', 'Cyber Security Engineering', 'Data Science', 'Mathematics', 'Business', 'Engineering'];
@@ -49,7 +50,8 @@ export default function AlumniQuestionnaire() {
       navigate('/stream-selector');
     } catch (error) {
       console.error('Profile save error:', error.response?.data || error.message);
-      alert('Failed to save profile: ' + (error.response?.data?.detail || error.message));
+      const msg = error.response?.data?.detail || error.message;
+      useToastStore.getState().error('Failed to save profile: ' + (typeof msg === 'string' ? msg : 'Please try again.'));
     }
   };
 
