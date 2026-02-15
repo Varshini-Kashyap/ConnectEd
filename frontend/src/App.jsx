@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
 import { useChatStore } from './stores/chatStore';
+import ThemeSync from './components/ThemeSync';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Questionnaire from './pages/Questionnaire';
@@ -12,6 +13,7 @@ import RequestsPage from './pages/RequestsPage';
 import MessagesPage from './pages/MessagesPage';
 import ChatPopup from './components/ChatPopup';
 import MessagingButton from './components/MessagingButton';
+import Notifications from './pages/Notifications';
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated, user } = useAuthStore();
@@ -32,6 +34,7 @@ function App() {
   
   return (
     <Router>
+      <ThemeSync />
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
@@ -81,6 +84,14 @@ function App() {
           element={
             <ProtectedRoute>
               <MessagesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/notifications"
+          element={
+            <ProtectedRoute>
+              <Notifications />
             </ProtectedRoute>
           }
         />

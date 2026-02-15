@@ -1,8 +1,18 @@
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useChatStore } from '../stores/chatStore';
-import { useState, useEffect } from 'react';
 import { careerAPI } from '../services/api';
+
+const THEME_KEY = 'connected-theme';
+
+function BriefcaseIcon({ className = '' }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+    </svg>
+  );
+}
 
 export default function NavBar() {
   const { user, logout } = useAuthStore();
@@ -10,101 +20,205 @@ export default function NavBar() {
   const navigate = useNavigate();
   const location = useLocation();
   const [pendingCount, setPendingCount] = useState(0);
+  const [theme, setTheme] = useState(() => localStorage.getItem(THEME_KEY) || 'light');
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useRef(null);
 
   useEffect(() => {
     const fetchPending = async () => {
       try {
         const response = await careerAPI.getPendingRequests();
-        console.log('Pending requests response:', response.data);
-        setPendingCount(response.data.length);
+        setPendingCount(response.data?.length ?? 0);
       } catch (error) {
         console.error('Error fetching pending requests:', error);
       }
     };
-    
     fetchPending();
-    const interval = setInterval(fetchPending, 10000); // Check every 10 seconds
+    const interval = setInterval(fetchPending, 10000);
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem(THEME_KEY, theme);
+  }, [theme]);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (profileRef.current && !profileRef.current.contains(e.target)) {
+        setProfileOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const toggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'));
+
   const handleLogout = () => {
-    clearAllChats(); // Clear all open chats
+    clearAllChats();
+    setProfileOpen(false);
     logout();
     navigate('/login');
   };
 
   return (
-    <nav className="bg-gmu-green text-white shadow-lg">
-      <div className="container mx-auto px-4">
-        <div className="flex justify-between items-center h-16">
-          <Link to="/stream-selector" className="text-2xl font-bold flex items-center">
-            <span className="text-gmu-gold">Connect</span>Ed
-          </Link>
+    <nav
+      className="sticky top-0 z-50 border-b"
+      style={{
+        background: 'var(--cream-50)',
+        borderColor: 'var(--cream-300)',
+        boxShadow: 'var(--shadow-sm)',
+        padding: '1rem 1.5rem',
+      }}
+    >
+      <div className="max-w-7xl mx-auto flex items-center justify-between">
+        <Link
+          to="/stream-selector"
+          className="flex items-center gap-3 font-dm-sans text-xl font-bold no-underline focus:outline-none focus-visible:ring-2 focus-visible:ring-coral-500 focus-visible:ring-offset-2 rounded-lg"
+          style={{ color: 'var(--cream-900)' }}
+        >
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+            style={{ background: 'var(--gradient-primary)' }}
+          >
+            <BriefcaseIcon className="w-[18px] h-[18px] text-white" />
+          </div>
+          ConnectEd
+        </Link>
 
-          <div className="flex gap-6 items-center">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
             <Link
-              to="/career"
-              className={`hover:text-gmu-gold transition ${
-                location.pathname === '/career' ? 'text-gmu-gold' : ''
-              }`}
+              to="/stream-selector"
+              className={`nav-link-warm ${location.pathname === '/stream-selector' ? 'active' : ''}`}
             >
-              Career
+              Home
             </Link>
             <Link
               to="/student"
-              className={`hover:text-gmu-gold transition ${
-                location.pathname === '/student' ? 'text-gmu-gold' : ''
-              }`}
+              className={`nav-link-warm ${location.pathname === '/student' ? 'active' : ''}`}
             >
               Student
             </Link>
             <Link
-              to="/profile"
-              className={`hover:text-gmu-gold transition ${
-                location.pathname === '/profile' ? 'text-gmu-gold' : ''
-              }`}
+              to="/career"
+              className={`nav-link-warm ${location.pathname === '/career' ? 'active' : ''}`}
             >
-              Profile
+              Career
+            </Link>
+            <Link
+              to="/notifications"
+              className={`nav-link-warm flex items-center gap-1.5 ${location.pathname === '/notifications' ? 'active' : ''}`}
+              title="Notifications"
+            >
+              <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+              Notifications
             </Link>
             <Link
               to="/requests"
-              className={`hover:text-gmu-gold transition relative ${
-                location.pathname === '/requests' ? 'text-gmu-gold' : ''
-              }`}
+              className={`nav-link-warm flex items-center gap-1.5 relative ${location.pathname === '/requests' ? 'active' : ''}`}
+              title="Requests"
             >
               Requests
               {pendingCount > 0 && (
-                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                <span className="absolute -top-0.5 -right-1 bg-red-500 text-white text-xs rounded-full min-w-[1.25rem] h-5 px-1 flex items-center justify-center">
                   {pendingCount}
                 </span>
               )}
             </Link>
             <Link
               to="/messages"
-              className={`hover:text-gmu-gold transition ${
-                location.pathname === '/messages' ? 'text-gmu-gold' : ''
-              }`}
+              className={`nav-link-warm ${location.pathname === '/messages' ? 'active' : ''}`}
             >
               Messages
             </Link>
-
-            {user && (
-              <div className="flex items-center gap-3">
-                <img
-                  src={user.avatar_url}
-                  alt={user.name}
-                  className="w-8 h-8 rounded-full"
-                />
-                <span className="text-sm">{user.name}</span>
-                <button
-                  onClick={handleLogout}
-                  className="bg-red-600 px-4 py-2 rounded hover:bg-red-700 text-sm"
-                >
-                  Logout
-                </button>
-              </div>
-            )}
           </div>
+
+          {user && (
+            <>
+              <div className="relative" ref={profileRef}>
+                <button
+                  type="button"
+                  onClick={() => setProfileOpen((o) => !o)}
+                  className="flex items-center gap-2 rounded-lg py-1 pr-2 border-none bg-transparent cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-coral-500 focus-visible:ring-offset-2"
+                  style={{ color: 'var(--cream-900)' }}
+                  aria-expanded={profileOpen}
+                  aria-haspopup="true"
+                  aria-label="Profile menu"
+                >
+                  <img
+                    src={user.avatar_url}
+                    alt={user.name || 'Profile'}
+                    className="w-10 h-10 rounded-full object-cover border-2"
+                    style={{ borderColor: 'var(--cream-300)' }}
+                  />
+                  <span className="text-sm font-dm-sans font-medium hidden sm:inline" style={{ color: 'var(--cream-800)' }}>
+                    {user.name}
+                  </span>
+                  <svg
+                    className={`w-4 h-4 transition-transform ${profileOpen ? 'rotate-180' : ''}`}
+                    style={{ color: 'var(--cream-700)' }}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {profileOpen && (
+                  <div
+                    className="absolute right-0 top-full mt-2 py-1 min-w-[160px] rounded-lg border shadow-lg z-50"
+                    style={{
+                      background: 'var(--cream-50)',
+                      borderColor: 'var(--cream-300)',
+                      boxShadow: 'var(--shadow-lg)',
+                    }}
+                  >
+                    <Link
+                      to="/profile"
+                      onClick={() => setProfileOpen(false)}
+                      className="block w-full text-left px-4 py-2.5 text-sm font-dm-sans font-medium no-underline transition-colors hover:bg-[var(--cream-200)] focus:outline-none focus-visible:ring-0"
+                      style={{ color: 'var(--cream-900)' }}
+                    >
+                      Profile
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      className="block w-full text-left px-4 py-2.5 text-sm font-dm-sans font-medium border-none bg-transparent cursor-pointer transition-colors hover:bg-[var(--cream-200)] focus:outline-none focus-visible:ring-0"
+                      style={{ color: 'var(--cream-900)' }}
+                    >
+                      Logout
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="w-10 h-10 rounded-lg flex items-center justify-center border-none cursor-pointer transition-all hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-coral-500 focus-visible:ring-offset-2"
+                style={{ background: 'var(--cream-200)', color: 'var(--coral-600)' }}
+                aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              >
+                {theme === 'dark' ? (
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                  </svg>
+                )}
+                <span className="sr-only">{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
     </nav>

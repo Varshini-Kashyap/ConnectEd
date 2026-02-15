@@ -1,96 +1,96 @@
-import { useState } from 'react';
+import { parseHobbies } from '../utils/hobbyEmoji';
+
+function getInitials(name) {
+  if (!name || typeof name !== 'string') return '?';
+  return name.trim().split(/\s+/).map(s => s[0]).slice(0, 2).join('').toUpperCase();
+}
 
 export default function TutorCard({ tutor, matchScore, matchReasons, showMatchScore = false }) {
-  const [showDetails, setShowDetails] = useState(false);
+  const initials = getInitials(tutor.name);
+  const hobbiesList = parseHobbies(tutor.hobbies || tutor.profile_data?.hobbies || '');
+  const sharedSummary = matchReasons?.length > 0 ? matchReasons[0] : 'You share similar courses and academic interests.';
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-6 hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 relative">
-      {/* Match Score Badge (if applicable) */}
-      {showMatchScore && matchScore !== undefined && (
-        <div className="absolute top-4 right-4 bg-gmu-green text-white px-3 py-1 rounded-full text-sm font-bold z-20">
-          {matchScore}% Match
-        </div>
-      )}
-
-      {/* Profile Section */}
-      <div className="flex items-start mb-4">
-        <img
-          src={tutor.avatar_url || `https://ui-avatars.com/api/?name=${tutor.name}&background=006633&color=fff`}
-          alt={tutor.name}
-          className="w-16 h-16 rounded-full mr-4 border-2 border-gmu-green"
-        />
-        <div className="flex-1">
-          <h3 className="text-xl font-bold text-gray-800">{tutor.name}</h3>
-          <p className="text-gray-600">{tutor.year}</p>
-          <div className="flex items-center gap-2 mt-1">
-            <span className="text-gmu-green font-semibold">
-              GPA: {tutor.gpa?.toFixed(2) || 'N/A'}
-            </span>
-            {tutor.gpa >= 3.5 && (
-              <span className="text-yellow-500 text-lg" title="High GPA">⭐</span>
-            )}
+    <div className="profile-card-warm">
+      <div className="relative h-20" style={{ background: 'var(--gradient-primary)' }}>
+        {showMatchScore && matchScore !== undefined && (
+          <div
+            className="absolute top-4 right-4 px-3 py-1 rounded-full text-sm font-bold"
+            style={{ background: 'var(--coral-600)', color: 'white' }}
+          >
+            {matchScore}% Match
           </div>
+        )}
+        <div
+          className="absolute left-6 rounded-full flex items-center justify-center font-dm-sans text-2xl font-bold text-white border-4 overflow-hidden"
+          style={{
+            bottom: '-40px',
+            width: 80,
+            height: 80,
+            background: 'var(--gradient-primary)',
+            borderColor: 'var(--cream-50)',
+            boxShadow: 'var(--shadow-md)',
+          }}
+        >
+          {tutor.avatar_url ? (
+            <img src={tutor.avatar_url} alt={tutor.name} className="w-full h-full object-cover" />
+          ) : (
+            initials
+          )}
         </div>
       </div>
 
-      {/* Courses */}
-      <div className="mb-4">
-        <p className="text-sm font-semibold text-gray-700 mb-2">Can tutor:</p>
-        <div className="flex flex-wrap gap-2">
-          {tutor.courses?.slice(0, 4).map((course, idx) => (
-            <span
-              key={idx}
-              className="bg-gmu-green text-white px-3 py-1 rounded-full text-xs font-semibold"
-            >
-              {course.code} ({course.grade})
+      <div className="pt-12 px-6 pb-6">
+        <h3 className="font-dm-sans text-xl font-semibold mb-1" style={{ color: 'var(--cream-900)' }}>
+          {tutor.name}
+        </h3>
+        <p className="text-sm mb-3" style={{ color: 'var(--cream-700)' }}>
+          {tutor.year} {tutor.gpa != null ? `• ${Number(tutor.gpa).toFixed(2)} GPA` : ''}
+        </p>
+
+        <div className="flex flex-wrap gap-2 mb-3">
+          {(tutor.courses || []).slice(0, 4).map((course, idx) => (
+            <span key={idx} className="interest-tag-warm">
+              {course.code || course.course_id}
             </span>
           ))}
-          {tutor.courses?.length > 4 && (
-            <span className="text-gray-500 text-xs py-1">
+          {(tutor.courses?.length || 0) > 4 && (
+            <span className="text-xs py-1" style={{ color: 'var(--cream-700)' }}>
               +{tutor.courses.length - 4} more
             </span>
           )}
         </div>
-      </div>
 
-      {/* Match Reasons (if applicable) */}
-      {matchReasons && matchReasons.length > 0 && (
-        <div className="bg-green-50 p-3 rounded-lg mb-4">
-          <p className="text-sm font-semibold text-gray-700 mb-1">Why this tutor:</p>
-          <ul className="text-sm space-y-1">
-            {matchReasons.map((reason, idx) => (
-              <li key={idx} className="text-gray-700">• {reason}</li>
+        {hobbiesList.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-4">
+            {hobbiesList.map(({ label, emoji }, idx) => (
+              <span key={idx} className="interest-tag-warm inline-flex items-center gap-1">
+                <span>{emoji}</span>
+                <span>{label}</span>
+              </span>
             ))}
-          </ul>
-        </div>
-      )}
+          </div>
+        )}
 
-      {/* Bio Section with Toggle */}
-      {tutor.bio && (
-        <div className="mb-4">
-          <button
-            onClick={() => setShowDetails(!showDetails)}
-            className="text-sm text-gmu-green font-semibold hover:underline"
-          >
-            {showDetails ? '▼ Hide Details' : '▶ Show Details'}
+        <div className="match-reason-warm mb-4 flex gap-2 items-start">
+          <svg className="w-4 h-4 shrink-0 mt-0.5" style={{ stroke: 'var(--coral-600)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <div>
+            <p className="text-xs font-semibold mb-0.5" style={{ color: 'var(--cream-800)' }}>Shared interest summary</p>
+            <span>{sharedSummary}</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" className="btn-primary-warm w-full">
+            Request Session
           </button>
-          {showDetails && (
-            <div className="mt-2 bg-gray-50 p-3 rounded-lg">
-              <p className="text-sm text-gray-700">{tutor.bio}</p>
-              {tutor.tutoring_sessions > 0 && (
-                <p className="text-sm text-gmu-green font-semibold mt-2">
-                  ✓ {tutor.tutoring_sessions} tutoring sessions completed
-                </p>
-              )}
-            </div>
-          )}
+          <button type="button" className="btn-secondary-warm w-full">
+            Message
+          </button>
         </div>
-      )}
-
-      {/* Action Button */}
-      <button className="w-full bg-gmu-gold text-gmu-green py-2 rounded-lg hover:bg-yellow-400 transition font-semibold z-20 relative">
-        Request Session
-      </button>
+      </div>
     </div>
   );
 }
