@@ -1,4 +1,5 @@
 # ConnectEd - GMU Student Connection Platform
+Demo link : https://youtu.be/_xJn7om-Tv4
 
 A full-stack web application connecting GMU students with alumni and peer tutors, powered by AI-driven matching using Claude API.
 
@@ -59,7 +60,6 @@ Connected/
 ### Prerequisites
 - **Python 3.11 or 3.12** (backend; 3.13 is not supported by pinned dependencies)
 - Node.js 16+
-- Groq API key (get free at https://console.groq.com/)
 
 ### Backend Setup
 
@@ -203,22 +203,6 @@ The application uses Groq's Llama 3.1 70B model for intelligent tutor matching:
 ### Connections
 - `POST /api/connections` - Create connection request
 - `GET /api/connections/{user_id}` - Get user connections
-
-## 🎨 UI Features
-
-- **GMU Branding**: Green and gold color scheme
-- **Responsive Design**: Works on desktop and mobile
-- **Modern UI**: Clean, professional interface
-- **Real-time Updates**: Dynamic content loading
-- **Modal Dialogs**: For connections and tutor matching
-
-## 📝 License
-
-This project is created for educational purposes.
-
-## 👥 Contributing
-
-This is a demonstration project for GMU students. Feel free to fork and customize!
 
 ## 🐛 Troubleshooting
 
